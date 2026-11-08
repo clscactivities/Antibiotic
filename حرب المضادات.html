@@ -1,0 +1,982 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>حرب المضادات</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lalezar&family=Readex+Pro:wght@300;400;500;700&display=swap">
+<style>
+/* Layout: full-bleed night-shift hospital ward as the stage; game UI floats over it like a visual-novel / arcade hybrid */
+:root{
+  --bg:#04090A; --panel:rgba(7,18,20,.94); --panel2:#0C1D20; --ink:#E9F2F0; --muted:#8EA6A2; --line:#20403C;
+  --cure:#3DDCC3; --bug:#FF3B5C; --warn:#FFB23E; --gold:#F6D36B;
+  --display:"Lalezar","Readex Pro",system-ui,sans-serif;
+  --body:"Readex Pro","Segoe UI",Tahoma,system-ui,sans-serif;
+  --danger:0; color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{background:var(--bg);color:var(--ink)}
+body{font-family:var(--body);font-size:16px;line-height:1.6}
+button{font:inherit;color:inherit}
+.app{position:relative}
+.stage{position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;background:#030708;user-select:none}
+#scene{position:absolute;inset:0;width:100%;height:100%;display:block}
+#world{transform-origin:0 0;transition:transform 1s cubic-bezier(.65,0,.25,1),filter 1.2s}
+#doc{transition:transform 1s cubic-bezier(.5,0,.3,1)}
+#doc.walking #docBody{animation:bob .32s ease-in-out infinite alternate}
+@keyframes bob{to{transform:translateY(-7px)}}
+.ecg{animation:ecg 1.4s linear infinite}
+@keyframes ecg{to{transform:translateX(-200px)}}
+.flicker{animation:flick 6s infinite}
+@keyframes flick{0%,92%,100%{opacity:.4}93%{opacity:.08}95%{opacity:.45}96%{opacity:.12}}
+.bed.clickable{cursor:pointer}
+.bed .bedglow{opacity:0;transition:opacity .2s}
+.bed.clickable:hover .bedglow,.bed.clickable:focus .bedglow{opacity:1}
+.bed.clickable:focus{outline:none}
+.bed.clickable .bedglow{animation:dash 1.2s linear infinite}
+@keyframes dash{to{stroke-dashoffset:-36}}
+.alert-on{animation:blink .6s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
+.hr{font:700 30px var(--body)} .hrl{font:500 12px var(--body);fill:#5E7F7B} .plate{font:500 15px var(--body);fill:#A9C3BF}
+.stampT{font:400 30px var(--display)}
+.excl{font:700 22px var(--body);fill:#fff}
+.svgT{font-family:var(--body)}
+.bugwrap{animation:bugpulse 1.8s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes bugpulse{50%{transform:scale(1.06)}}
+.spikes{animation:spin 16s linear infinite;transform-box:fill-box;transform-origin:center}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spore{animation:spore 2.4s ease-in-out infinite}
+@keyframes spore{50%{opacity:.35}}
+
+/* overlays inside stage */
+.vignette{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,transparent 45%,rgba(255,20,60,calc(var(--danger)*.75)) 100%),radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.55) 100%);transition:background .8s}
+#fx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:34}
+.flash{position:absolute;inset:0;pointer-events:none;opacity:0}
+.flash.go{animation:flash .7s ease-out}
+@keyframes flash{15%{opacity:.75}100%{opacity:0}}
+.stage.shake{animation:shake .55s cubic-bezier(.36,.07,.19,.97)}
+@keyframes shake{10%,90%{transform:translate(-2px,1px)}20%,80%{transform:translate(5px,-3px)}30%,50%,70%{transform:translate(-9px,4px)}40%,60%{transform:translate(9px,-4px)}}
+.lb-bar{position:absolute;left:0;right:0;height:0;background:#000;z-index:20;transition:height .7s cubic-bezier(.6,0,.3,1)}
+.lb-top{top:0}.lb-bot{bottom:0}
+.letterbox .lb-bar{height:12%}
+.cine{position:absolute;inset:auto 0 13.5%;z-index:21;text-align:center;padding-inline:max(16px,env(safe-area-inset-left,0px));pointer-events:none}
+.cine p{display:inline-block;margin:0;font-size:clamp(15px,2.2vw,28px);font-weight:500;color:#fff;max-width:min(92%,52ch);background:rgba(2,6,7,.86);border:1px solid #ffffff1f;border-radius:16px;padding:.5em 1em;box-shadow:0 10px 40px #000c;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.cine p:empty{display:none}
+.cine .big{display:block;font-family:var(--display);font-size:clamp(30px,5vw,72px);line-height:1.1;color:var(--bug);text-shadow:0 3px 0 #000,0 0 30px rgba(255,59,92,.45);margin-bottom:.1em}
+.skip{position:absolute;z-index:22;bottom:calc(12% + 12px);left:max(16px,env(safe-area-inset-left,0px));background:rgba(0,0,0,.5);border:1px solid #fff4;border-radius:99px;padding:6px 16px;cursor:pointer;font-size:14px}
+.banner{position:absolute;inset:14% 0 auto;z-index:35;text-align:center;pointer-events:none;padding-inline:16px;padding-block:14px 18px;opacity:0;background:linear-gradient(90deg,transparent,rgba(2,6,7,.88) 18%,rgba(2,6,7,.88) 82%,transparent)}
+.banner b{display:block;font-family:var(--display);font-weight:400;font-size:clamp(38px,7vw,96px);line-height:1.05;letter-spacing:.01em}
+.banner span{display:block;font-size:clamp(15px,1.8vw,22px);font-weight:700;color:#fff;margin-top:4px}
+.banner b{-webkit-text-stroke:0}
+.banner.go{animation:banner 1.9s cubic-bezier(.2,.9,.2,1) forwards}
+@keyframes banner{0%{opacity:0;transform:scale(1.6)}12%{opacity:1;transform:scale(.96)}20%{transform:scale(1)}80%{opacity:1}100%{opacity:0;transform:scale(1.03)}}
+.banner.right b{color:var(--cure);text-shadow:0 0 30px rgba(61,220,195,.6)}
+.banner.over b{color:var(--warn);text-shadow:0 0 30px rgba(255,178,62,.5)}
+.banner.wrong b,.banner.timeout b{color:var(--bug);text-shadow:0 0 30px rgba(255,59,92,.6)}
+.combo{position:absolute;top:34%;left:50%;z-index:36;transform:translateX(-50%);font-family:var(--display);font-size:clamp(26px,4vw,52px);color:var(--gold);text-shadow:0 0 24px rgba(246,211,107,.7);pointer-events:none;opacity:0}
+.combo.go{animation:combo 1.4s ease-out}
+@keyframes combo{0%{opacity:0;transform:translate(-50%,30px) rotate(-6deg)}20%{opacity:1;transform:translate(-50%,0) rotate(-6deg) scale(1.15)}100%{opacity:0;transform:translate(-50%,-40px) rotate(-6deg)}}
+.taunt{position:absolute;z-index:40;top:24%;left:4%;height:62%;aspect-ratio:1;transform:translateX(-140%);transition:transform .55s cubic-bezier(.3,1.4,.5,1);pointer-events:none}
+.taunt:not(.on){visibility:hidden;opacity:0;transition:transform .4s,opacity .3s,visibility 0s .4s}
+.taunt.on{transform:none;opacity:1}
+.taunt svg{width:100%;height:100%;display:block;overflow:visible}
+.taunt .bubble{position:absolute;top:2%;right:-95%;width:110%;z-index:1;background:#fff;color:#1a0610;border-radius:18px;padding:10px 14px;font-weight:700;font-size:clamp(13px,1.5vw,19px);box-shadow:0 8px 30px #0008}
+.taunt .bubble::after{content:"";position:absolute;bottom:-12px;right:78%;border:12px solid transparent;border-top-color:#fff;border-bottom:0}
+.bigbug{position:absolute;inset:0;z-index:19;display:flex;justify-content:center;align-items:flex-start;padding-top:12.5%;pointer-events:none;opacity:0;transition:opacity .4s}
+.bigbug svg{height:42%;width:auto;max-width:90%;aspect-ratio:1;overflow:visible;transform:scale(.2);transition:transform 1.6s cubic-bezier(.2,.8,.2,1)}
+.bigbug.on{opacity:1}.bigbug.on svg{transform:scale(1)}
+.siren{position:absolute;inset:0;z-index:12;pointer-events:none;opacity:0;transition:opacity .4s}
+.siren.on{opacity:1;animation:siren .8s steps(1) infinite}
+@keyframes siren{0%{background:radial-gradient(circle at 15% 20%,rgba(255,40,60,.45),transparent 50%)}50%{background:radial-gradient(circle at 85% 20%,rgba(40,110,255,.45),transparent 50%)}}
+.dawn{position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(255,170,90,.28),rgba(255,120,80,.05) 60%,transparent);opacity:0;transition:opacity 2.5s}
+.dawn.on{opacity:1}
+.toast{position:absolute;z-index:14;top:16%;left:50%;transform:translateX(-50%);background:rgba(40,6,14,.92);border:1px solid var(--bug);color:#fff;padding:8px 18px;border-radius:99px;font-weight:700;font-size:15px;white-space:nowrap}
+
+/* HUD */
+.hud{position:absolute;z-index:10;top:0;left:0;right:0;display:flex;align-items:center;gap:clamp(8px,2vw,24px);
+  padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  background:linear-gradient(180deg,rgba(0,0,0,.75),transparent);font-variant-numeric:tabular-nums}
+.hud-doc{display:flex;align-items:center;gap:10px;min-width:0}
+.hud-doc svg{width:44px;height:44px;border-radius:50%;background:var(--panel2);border:2px solid var(--cure);flex:none}
+.hud-doc b{display:block;font-size:15px;white-space:nowrap}
+.hud-doc span{display:block;font-size:12px;color:var(--muted);white-space:nowrap}
+.gauge{flex:1;max-width:440px;margin-inline:auto;min-width:0}
+.gauge-top{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted);gap:8px}
+.gauge-top .gl{display:flex;align-items:center;gap:6px}
+.gauge-top svg{width:22px;height:22px}
+.gauge-top b{font-family:var(--display);font-size:22px;font-weight:400;color:var(--bug);line-height:1}
+.segs{display:grid;grid-template-columns:repeat(20,1fr);gap:3px;margin-top:4px;direction:rtl}
+.segs i{height:10px;border-radius:2px;background:#ffffff14;transition:background .3s, box-shadow .3s}
+.segs i.on{background:var(--bug);box-shadow:0 0 8px rgba(255,59,92,.7)}
+.segs i.on.low{background:var(--warn);box-shadow:0 0 8px rgba(255,178,62,.5)}
+.gauge.glitch{animation:glitch .5s steps(2) 2}
+@keyframes glitch{50%{transform:translateX(6px) skewX(-8deg);filter:hue-rotate(40deg)}}
+.hud-score{text-align:center}
+.hud-score b{display:block;font-family:var(--display);font-weight:400;font-size:28px;line-height:1;color:var(--gold)}
+.hud-score span{font-size:11px;color:var(--muted)}
+.icon-btn{background:#0008;border:1px solid #fff3;border-radius:50%;width:38px;height:38px;display:grid;place-items:center;cursor:pointer;flex:none}
+.icon-btn svg{width:18px;height:18px}
+.hint{position:absolute;z-index:9;bottom:4%;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.65);border:1px solid var(--cure);color:var(--ink);padding:8px 20px;border-radius:99px;font-size:clamp(12px,1.4vw,16px);white-space:nowrap;animation:hint 1.6s ease-in-out infinite}
+@keyframes hint{50%{box-shadow:0 0 0 8px rgba(61,220,195,.12)}}
+
+/* UI panels (below stage on phones, floating over it on large screens) */
+.ui{padding-block:16px 30px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:20px;box-shadow:0 20px 60px #000a}
+h1,h2,h3{font-family:var(--display);font-weight:400;margin:0;line-height:1.1;text-wrap:balance}
+.btn{border:0;border-radius:12px;padding:13px 26px;font-weight:700;font-size:17px;cursor:pointer;background:var(--cure);color:#022420;box-shadow:0 6px 0 #1A8F7E;transition:transform .1s, box-shadow .1s}
+.btn:hover{transform:translateY(-2px);box-shadow:0 8px 0 #1A8F7E}
+.btn:active{transform:translateY(4px);box-shadow:0 2px 0 #1A8F7E}
+.btn.red{background:var(--bug);color:#fff;box-shadow:0 6px 0 #A3122E}
+.btn:focus-visible,.card:focus-visible,.pick:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-offset:3px}
+
+/* title */
+.title{display:grid;grid-template-columns:1.35fr 1fr;gap:22px}
+.title>*{min-width:0}
+.logo{font-size:clamp(46px,6.5vw,80px);line-height:.95;color:var(--ink);text-shadow:0 0 30px rgba(61,220,195,.25)}
+.logo em{font-style:normal;color:var(--bug);text-shadow:0 0 30px rgba(255,59,92,.5)}
+.eyebrow{display:block;font-size:13px;color:var(--cure);font-weight:500;margin-bottom:6px}
+.tagline{margin:8px 0 12px;color:#C9D9D6;font-size:17px;max-width:44ch}
+.picks{display:flex;gap:12px;margin:6px 0 12px}
+.pick{flex:1;max-width:124px;background:var(--panel2);border:2px solid var(--line);border-radius:14px;padding:8px;cursor:pointer;text-align:center;transition:border-color .15s, transform .15s}
+.pick svg{width:100%;height:auto;display:block}
+.pick span{font-size:13px;font-weight:700}
+.pick[aria-pressed="true"]{border-color:var(--cure);transform:translateY(-3px);box-shadow:0 0 0 4px rgba(61,220,195,.15)}
+.lbl{font-size:13px;color:var(--muted);font-weight:500}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:10px;max-width:340px}
+.field input[type=text]{background:var(--panel2);border:2px solid var(--line);border-radius:10px;padding:10px 14px;color:var(--ink);font:inherit}
+.chk{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--muted);margin-bottom:16px}
+table.rules{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums;margin-bottom:14px}
+.rules td{padding:6px 8px;border-bottom:1px solid var(--line)}
+.rules td:last-child{text-align:left;white-space:nowrap;font-weight:700}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-left:8px}
+.board h3{font-size:24px;margin-bottom:10px;color:var(--gold)}
+.board ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;counter-reset:r}
+.board li{counter-increment:r;display:flex;gap:10px;align-items:center;background:var(--panel2);border-radius:10px;padding:8px 10px;font-variant-numeric:tabular-nums}
+.board li::before{content:counter(r);font-family:var(--display);font-size:20px;width:20px;color:var(--gold)}
+.board li .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.board .w{font-size:11px;padding:1px 8px;border-radius:99px}
+.w.win{background:#0F3B35;color:var(--cure)}.w.lose{background:#3D0F1A;color:var(--bug)}
+.board .empty{color:var(--muted);font-size:14px;margin:0}
+.board .clr{margin-top:10px;background:none;border:1px solid var(--line);border-radius:8px;padding:5px 12px;font-size:12px;color:var(--muted);cursor:pointer}
+
+/* dialog */
+.dlg{display:grid;grid-template-columns:170px 1fr;gap:18px;align-items:start}
+.dlg>*{min-width:0}
+.portrait{background:linear-gradient(180deg,#123236,#08181A);border:2px solid var(--line);border-radius:16px;overflow:hidden}
+.portrait svg{display:block;width:100%;height:auto}
+.who{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;margin-bottom:6px}
+.who b{font-family:var(--display);font-weight:400;font-size:26px;color:var(--gold)}
+.who span{font-size:13px;color:var(--muted)}
+.dtop{display:grid;grid-template-columns:1fr minmax(200px,.8fr);gap:14px}
+.dtop>*{min-width:0}
+.speech{margin:0;font-size:18px;min-height:3.2em;cursor:pointer;position:relative;background:#0003;border-radius:12px;padding:10px 14px;border:1px solid var(--line)}
+.speech::before{content:"";position:absolute;top:18px;right:-9px;border:9px solid transparent;border-left-color:var(--line);border-right:0}
+.report{background:#EDE8DA;color:#2B2418;border-radius:10px;padding:10px 12px;font-size:13.5px;position:relative;box-shadow:0 4px 0 #8C7B5A}
+.report h4{margin:0 0 6px;font-size:12px;letter-spacing:.04em;color:#7A6A4C;display:flex;justify-content:space-between}
+.report dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:3px 10px}
+.report dt{color:#6E6047}
+.report dd{margin:0;font-weight:700;direction:ltr;text-align:right}
+.report dd.ar{direction:rtl}
+.report svg{display:block;width:100%;max-width:190px;margin:4px auto 0}
+.q{margin:14px 0 10px;font-weight:700;font-size:18px}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.card{text-align:right;background:linear-gradient(180deg,#14302F,#0B1E20);border:2px solid #2B5550;border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:8px;cursor:pointer;min-height:118px;position:relative;opacity:0;transform:translateY(16px);transition:transform .15s,border-color .15s,box-shadow .15s}
+.card.in{opacity:1;transform:none;transition:opacity .3s, transform .3s, border-color .15s, box-shadow .15s}
+.card.in:hover:not(:disabled){transform:translateY(-6px);border-color:var(--cure);box-shadow:0 10px 30px rgba(61,220,195,.18)}
+.card .ct{display:flex;justify-content:space-between;align-items:center}
+.card .ic{width:40px;height:40px;border-radius:10px;background:#0006;display:grid;place-items:center;color:var(--cure)}
+.card .ic svg{width:24px;height:24px}
+.card .k{font-family:var(--display);font-size:22px;color:#ffffff40}
+.card .tx{font-weight:500;font-size:15.5px;line-height:1.45}
+.card:disabled{cursor:default}
+.card.chosen{border-color:var(--gold)}
+.card.dim{opacity:.35}
+.timer-note{font-size:12px;color:var(--muted);margin-top:8px}
+
+/* learn */
+.learn .verdict{font-size:clamp(28px,3.5vw,40px)}
+.learn.right .verdict{color:var(--cure)}.learn.over .verdict{color:var(--warn)}.learn.wrong .verdict,.learn.timeout .verdict{color:var(--bug)}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 10px;font-variant-numeric:tabular-nums}
+.chip{font-size:13px;font-weight:700;padding:3px 12px;border-radius:99px;background:var(--panel2);border:1px solid var(--line)}
+.chip.g{color:var(--gold)}.chip.r{color:var(--bug)}.chip.c{color:var(--cure)}
+.learn p{margin:0 0 10px;font-size:17px;max-width:70ch}
+.fact{background:#0F2E2B;border-right:4px solid var(--cure);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:15.5px}
+.fact b{color:var(--cure)}
+.correct{color:var(--cure);font-weight:700}
+
+/* end */
+.endp{display:grid;grid-template-columns:1.3fr 1fr;gap:22px}
+.endp>*{min-width:0}
+.endp .big{font-size:clamp(40px,6vw,76px)}
+.endp .big.win{color:var(--cure)}.endp .big.lose{color:var(--bug)}
+.rank{display:inline-block;margin:10px 0 14px;padding:6px 16px;border:2px solid var(--gold);color:var(--gold);border-radius:99px;font-weight:700}
+.estats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;font-variant-numeric:tabular-nums}
+.estats div{background:var(--panel2);border-radius:12px;padding:10px 12px}
+.estats b{display:block;font-family:var(--display);font-weight:400;font-size:30px;line-height:1.1}
+.estats span{font-size:12px;color:var(--muted)}
+.efact{color:#C9D9D6;margin:0 0 16px;max-width:56ch}
+
+@media (max-width:760px){
+  .title,.endp{grid-template-columns:1fr}
+  .dlg{grid-template-columns:90px 1fr;gap:12px}
+  .dtop{grid-template-columns:1fr}
+  .cards{grid-template-columns:1fr}
+  .card{min-height:0;flex-direction:row;align-items:center}
+  .card .ct{flex-direction:column-reverse;gap:2px}
+  .hud{padding-block:6px;gap:8px}
+  .hud-doc div{display:none}
+  .hud-doc svg{width:32px;height:32px}
+  .hud-score b{font-size:20px}
+  .icon-btn{width:30px;height:30px}
+  .segs i{height:7px}
+  .taunt .bubble{right:-110%;width:150%;font-size:12px;padding:6px 10px}
+}
+/* large screens: game fills the window, panels float over the stage */
+@media (min-width:900px) and (min-height:600px){
+  html,body{height:100%;overflow:hidden}
+  .app{height:100%}
+  .stage{position:absolute;inset:0;aspect-ratio:auto;height:100%}
+  .ui{position:absolute;inset:0;pointer-events:none;padding:0;z-index:30}
+  .ui>.panel{pointer-events:auto;position:absolute;max-height:calc(100% - 100px);overflow:auto}
+  #titleP,#endP{top:50%;left:50%;transform:translate(-50%,-50%);width:min(980px,calc(100% - 48px))}
+  #dlg,#learnP{bottom:20px;left:50%;transform:translateX(-50%);width:min(1180px,calc(100% - 40px))}
+  #dlg .portrait{box-shadow:0 10px 40px #000}
+}
+@media (min-width:900px) and (min-height:600px) and (max-height:860px){
+  .panel{padding:14px 16px}
+  .dlg{grid-template-columns:130px 1fr;gap:14px}
+  .who b{font-size:22px}
+  .speech{font-size:16px;padding:8px 12px}
+  .report{font-size:12.5px;padding:8px 10px}
+  .report svg{max-width:130px}
+  .q{margin:10px 0 8px;font-size:16px}
+  .card{min-height:84px;padding:10px;gap:6px}
+  .card .ic{width:32px;height:32px}.card .ic svg{width:20px;height:20px}
+  .card .tx{font-size:14.5px}
+  .learn p{font-size:15.5px}.fact{font-size:14.5px;padding:8px 12px}
+  #dlg,#learnP{bottom:12px}
+}
+@media (max-width:899px) and (orientation:landscape),(min-width:900px) and (max-height:599px){
+  .stage{aspect-ratio:auto;height:64vh;min-height:220px}
+  .dlg{grid-template-columns:100px 1fr}
+  .dtop{grid-template-columns:1fr minmax(180px,.8fr)}
+  .cards{grid-template-columns:repeat(3,1fr)}
+  .card{flex-direction:column;align-items:stretch}
+  .card .ct{flex-direction:row}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <radialGradient id="bugBody" cx="40%" cy="35%" r="70%"><stop offset="0" stop-color="#FF6A86"/><stop offset=".55" stop-color="#C3164B"/><stop offset="1" stop-color="#560828"/></radialGradient>
+    <radialGradient id="bugGlow"><stop offset="0" stop-color="#FF2850" stop-opacity=".6"/><stop offset="1" stop-color="#FF2850" stop-opacity="0"/></radialGradient>
+    <pattern id="gownDots" width="16" height="16" patternUnits="userSpaceOnUse"><circle cx="4" cy="4" r="2" fill="#fff" opacity=".35"/><circle cx="12" cy="12" r="2" fill="#2F6F8F" opacity=".3"/></pattern>
+    <symbol id="bugSym" viewBox="-150 -150 300 300"><g class="bugwrap">
+      <circle r="140" fill="url(#bugGlow)"/>
+      <g class="spikes"><path id="spikePath" fill="#7A1035" stroke="#7A1035" stroke-width="18" stroke-linejoin="round"/></g>
+      <circle r="96" fill="url(#bugBody)"/>
+      <circle cx="-52" cy="-46" r="14" fill="#E2558C" opacity=".6"/><circle cx="58" cy="40" r="10" fill="#E2558C" opacity=".55"/><circle cx="-34" cy="60" r="8" fill="#E2558C" opacity=".5"/><circle cx="40" cy="-60" r="7" fill="#E2558C" opacity=".5"/>
+      <ellipse cx="-36" cy="-6" rx="23" ry="18" fill="#F5FF7A"/><ellipse cx="36" cy="-6" rx="23" ry="18" fill="#F5FF7A"/>
+      <circle cx="-30" cy="-2" r="8" fill="#22040F"/><circle cx="30" cy="-2" r="8" fill="#22040F"/>
+      <path d="M-66 -40 L-12 -16 M66 -40 L12 -16" stroke="#2A0613" stroke-width="13" stroke-linecap="round"/>
+      <path d="M-52 32 Q0 84 52 32 Q0 50 -52 32Z" fill="#22040F"/>
+      <path d="M-44 36 L-36 50 L-28 40 L-18 54 L-8 42 L2 55 L12 42 L22 52 L32 40 L44 36Z" fill="#FFF4E6"/>
+    </g></symbol>
+  </defs>
+</svg>
+
+<div class="app" dir="rtl" lang="ar">
+  <div class="stage" id="stage">
+    <div id="sceneHost"></div>
+    <div class="dawn" id="dawn"></div>
+    <div class="vignette"></div>
+    <div class="siren" id="siren"></div>
+    <canvas id="fx"></canvas>
+    <div class="flash" id="flash"></div>
+    <div class="banner" id="banner"><b></b><span></span></div>
+    <div class="combo" id="combo"></div>
+    <div class="taunt" id="taunt"><div class="bubble" id="tauntTx"></div><svg viewBox="-150 -150 300 300"><use href="#bugSym" x="-150" y="-150" width="300" height="300"/></svg></div>
+    <div class="bigbug" id="bigbug"><svg viewBox="-150 -150 300 300"><use href="#bugSym" x="-150" y="-150" width="300" height="300"/></svg></div>
+    <div class="toast" id="toast" hidden></div>
+    <div class="hint" id="hint" hidden>اختر مريضًا لعلاجه · حيوية المرضى تنقص مع الانتظار</div>
+    <div class="hud" id="hud" hidden>
+      <div class="hud-doc"><svg id="hudFace" viewBox="-70 -70 140 140"></svg><div><b id="hDoc"></b><span id="hWave"></span></div></div>
+      <div class="gauge" id="gauge">
+        <div class="gauge-top"><span class="gl"><svg viewBox="-150 -150 300 300"><use href="#bugSym" x="-150" y="-150" width="300" height="300"/></svg>مقاومة البكتيريا الخارقة</span><b id="hRes">0٪</b></div>
+        <div class="segs" id="segs"></div>
+      </div>
+      <div class="hud-score"><b id="hScore">0</b><span>نقطة</span></div>
+      <button class="icon-btn" id="mute" aria-label="كتم الصوت"></button>
+    </div>
+    <div class="lb-bar lb-top"></div><div class="lb-bar lb-bot"></div>
+    <div class="cine" id="cine"><p id="cineTx"></p></div>
+    <button class="skip" id="skip" hidden>تخطّي المقدمة</button>
+  </div>
+
+  <div class="ui">
+    <!-- TITLE -->
+    <section class="panel" id="titleP">
+      <div class="title">
+        <div>
+          <span class="eyebrow">فعالية التوعية العالمية بمقاومة مضادات الميكروبات</span>
+          <h1 class="logo">حرب <em>المضادات</em></h1>
+          <p class="tagline">مناوبة ليلية، ٨ مرضى على موجتين، وبكتيريا خارقة تتعلم من كل غلطة. قرارك ينقذ المريض أو يقوّيها.</p>
+          <div class="lbl">اختر شخصيتك</div>
+          <div class="picks">
+            <button class="pick" id="pickF" aria-pressed="true"><svg viewBox="-120 -100 240 260"></svg><span>طبيبة</span></button>
+            <button class="pick" id="pickM" aria-pressed="false"><svg viewBox="-120 -100 240 260"></svg><span>طبيب</span></button>
+          </div>
+          <div class="field"><label class="lbl" for="pname">اسمك أو اسم فريقك</label><input type="text" id="pname" maxlength="20" placeholder="مثلًا: ريما" autocomplete="off"></div>
+          <label class="chk"><input type="checkbox" id="notimer"> وضع الشرح الجماعي (بدون وقت)</label>
+          <button class="btn" id="go">ابدأ المناوبة</button>
+        </div>
+        <div>
+          <table class="rules">
+            <tr><td><span class="dot" style="background:var(--cure)"></span>علاج صحيح</td><td>+100 ومكافأة سرعة · −5٪</td></tr>
+            <tr><td><span class="dot" style="background:var(--warn)"></span>علاج مبالغ فيه</td><td>+40 · +15٪</td></tr>
+            <tr><td><span class="dot" style="background:var(--bug)"></span>قرار خاطئ</td><td>0 · +25٪</td></tr>
+            <tr><td><span class="dot" style="background:var(--muted)"></span>المريض تدهور</td><td>0 · +20٪</td></tr>
+          </table>
+          <div class="board"><h3>أبطال المناوبة</h3><ol id="lb1"></ol><button class="clr" id="clr">مسح اللوحة</button></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- DIALOG -->
+    <section class="panel dlg" id="dlg" hidden>
+      <div class="portrait"><svg id="dPortrait" viewBox="-120 -100 240 260"></svg></div>
+      <div>
+        <div class="who"><b id="dName"></b><span id="dRole"></span></div>
+        <div class="dtop">
+          <p class="speech" id="dSpeech" title="اضغط لإكمال النص"></p>
+          <div class="report" id="dReport"></div>
+        </div>
+        <p class="q" id="dQ" hidden></p>
+        <div class="cards" id="cards"></div>
+      </div>
+    </section>
+
+    <!-- LEARN -->
+    <section class="panel learn" id="learnP" hidden>
+      <h2 class="verdict" id="lVerdict"></h2>
+      <div class="chips" id="lChips"></div>
+      <p id="lText"></p>
+      <div class="fact" id="lFact"></div>
+      <button class="btn" id="lNext">عودة للجناح</button>
+    </section>
+
+    <!-- END -->
+    <section class="panel" id="endP" hidden>
+      <div class="endp">
+        <div>
+          <h2 class="big" id="eBig"></h2>
+          <div class="rank" id="eRank"></div>
+          <div class="estats">
+            <div><b id="eScore">0</b><span>النقاط</span></div>
+            <div><b id="eRight">0</b><span>مرضى تعافوا</span></div>
+            <div><b id="eRes">0٪</b><span>المقاومة النهائية</span></div>
+          </div>
+          <p class="efact" id="eFact"></p>
+          <button class="btn" id="again">مناوبة جديدة</button>
+        </div>
+        <div class="board"><h3>أبطال المناوبة</h3><ol id="lb2"></ol></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+const BEDX=[240,620,1000,1380];
+const G={phase:'title',cine:false,skip:false,busy:false};
+const sleep=ms=>new Promise(r=>setTimeout(r,(G.cine&&G.skip)?0:ms));
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ================= SOUND ================= */
+const SFX={a:null,m:false,
+ init(){if(this.a)return;try{this.a=new (window.AudioContext||window.webkitAudioContext)()}catch(e){}},
+ t(f,d,type='sine',v=.08,f2=null,dl=0){if(!this.a||this.m)return;const a=this.a,t0=a.currentTime+dl,o=a.createOscillator(),g=a.createGain();o.type=type;o.frequency.setValueAtTime(f,t0);if(f2)o.frequency.exponentialRampToValueAtTime(f2,t0+d);g.gain.setValueAtTime(.0001,t0);g.gain.exponentialRampToValueAtTime(v,t0+.015);g.gain.exponentialRampToValueAtTime(.0001,t0+d);o.connect(g).connect(a.destination);o.start(t0);o.stop(t0+d+.05)},
+ n(d,v=.1,f1=400,f2=4000,dl=0){if(!this.a||this.m)return;const a=this.a,t0=a.currentTime+dl,len=Math.floor(a.sampleRate*d),b=a.createBuffer(1,len,a.sampleRate),ch=b.getChannelData(0);for(let i=0;i<len;i++)ch[i]=Math.random()*2-1;const s=a.createBufferSource();s.buffer=b;const fl=a.createBiquadFilter();fl.type='bandpass';fl.frequency.setValueAtTime(f1,t0);fl.frequency.exponentialRampToValueAtTime(f2,t0+d);const g=a.createGain();g.gain.setValueAtTime(v,t0);g.gain.exponentialRampToValueAtTime(.0001,t0+d);s.connect(fl).connect(g).connect(a.destination);s.start(t0)},
+ beep(){this.t(980,.08,'sine',.045)},
+ ok(){[523,659,784,1046,1318].forEach((f,i)=>this.t(f,.3,'triangle',.08,null,i*.08))},
+ meh(){this.t(440,.2,'triangle',.08);this.t(349,.35,'triangle',.08,null,.18)},
+ bad(){this.t(200,.7,'sawtooth',.1,55);this.t(100,.8,'square',.05,40);this.n(.5,.15,2000,200)},
+ alarm(){for(let i=0;i<4;i++){this.t(880,.13,'square',.035,null,i*.3);this.t(660,.13,'square',.035,null,i*.3+.15)}},
+ whoosh(){this.n(.4,.12,300,3500)},
+ growl(){this.t(75,1.3,'sawtooth',.12,40);this.t(112,1.1,'square',.04,55);this.n(1,.08,300,120)},
+ siren(){for(let i=0;i<3;i++){this.t(650,.4,'sine',.07,980,i*.8);this.t(980,.4,'sine',.07,650,i*.8+.4)}},
+ type(){this.t(1400+Math.random()*500,.012,'square',.01)},
+ win(){[392,523,659,784,659,784,1046].forEach((f,i)=>this.t(f,.35,'triangle',.08,null,i*.14))}
+};
+const icoOn='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16 9a4 4 0 010 6M19 6a8 8 0 010 12"/></svg>';
+const icoOff='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M17 9l5 6M22 9l-5 6"/></svg>';
+$('mute').innerHTML=icoOn;
+$('mute').onclick=()=>{SFX.m=!SFX.m;$('mute').innerHTML=SFX.m?icoOff:icoOn};
+
+/* ================= ART ================= */
+(function(){let d='';const n=14;for(let i=0;i<n*2;i++){const a=i/(n*2)*Math.PI*2,r=i%2?130:86;d+=(i?'L':'M')+(Math.cos(a)*r).toFixed(1)+' '+(Math.sin(a)*r).toFixed(1)}$('spikePath').setAttribute('d',d+'Z')})();
+
+function face(p,mood,fever){
+  const s=p.skin,hc=p.hairColor||'#22160F',ec='#1A110E';let o='';
+  if(p.hijab)o+=`<path d="M-64 6 C-68 -56 -34 -78 0 -78 C34 -78 68 -56 64 6 C62 56 40 80 0 86 C-40 80 -62 56 -64 6Z" fill="${p.hijab}"/>`;
+  else o+=`<ellipse cx="-45" cy="2" rx="9" ry="12" fill="${s}"/><ellipse cx="45" cy="2" rx="9" ry="12" fill="${s}"/>`;
+  o+=`<ellipse rx="${p.hijab?40:45}" ry="${p.hijab?46:50}" fill="${s}"/>`;
+  o+=`<path d="M12 -46 C40 -36 46 0 38 24 C30 42 16 48 2 50 C22 28 26 -10 12 -46Z" fill="#000" opacity=".07"/>`;
+  if(p.hijab)o+=`<path d="M-46 -2 C-48 -56 48 -56 46 -2 L38 -4 C36 -40 -36 -40 -38 -4Z" fill="${p.hijab}"/><path d="M-44 -4 C-42 40 -22 56 0 56 C22 56 42 40 44 -4 L48 14 C46 54 22 70 0 70 C-22 70 -46 54 -48 14Z" fill="${p.hijab}"/>`;
+  else if(p.hair==='short')o+=`<path d="M-47 -8 C-53 -64 53 -64 47 -8 C42 -28 24 -36 4 -34 C-18 -38 -38 -30 -47 -8Z" fill="${hc}"/>`;
+  else if(p.hair==='kid')o+=`<path d="M-49 -4 C-58 -68 58 -68 49 -4 C45 -24 32 -30 20 -25 C12 -38 -4 -34 -10 -28 C-24 -36 -40 -26 -49 -4Z" fill="${hc}"/>`;
+  else if(p.hair==='bald')o+=`<path d="M-48 -2 C-50 -18 -46 -28 -40 -32 L-38 -4Z M48 -2 C50 -18 46 -28 40 -32 L38 -4Z" fill="${hc}"/>`;
+  if(p.beard)o+=`<path d="M-42 6 C-40 46 -18 60 0 60 C18 60 40 46 42 6 C34 26 18 32 0 32 C-18 32 -34 26 -42 6Z" fill="${hc}"/><path d="M-16 20 Q0 14 16 20 Q0 24 -16 20Z" fill="${hc}"/>`;
+  if(p.wrinkles)o+=`<path d="M-30 12 Q-24 16 -20 12 M30 12 Q24 16 20 12 M-12 -30 H12" stroke="#000" stroke-opacity=".18" stroke-width="2" fill="none"/>`;
+  const by=-20;let br;
+  if(mood==='sick'||mood==='worried')br=`M-27 ${by+1} L-9 ${by-5} M27 ${by+1} L9 ${by-5}`;
+  else if(mood==='angry')br=`M-27 ${by-5} L-9 ${by+1} M27 ${by-5} L9 ${by+1}`;
+  else br=`M-27 ${by-2} Q-18 ${by-6} -9 ${by-3} M27 ${by-2} Q18 ${by-6} 9 ${by-3}`;
+  o+=`<path d="${br}" stroke="${p.hijab?'#2A1C16':hc}" stroke-width="4" stroke-linecap="round" fill="none"/>`;
+  if(mood==='happy')o+=`<path d="M-25 0 Q-17 -9 -9 0 M9 0 Q17 -9 25 0" stroke="${ec}" stroke-width="4" fill="none" stroke-linecap="round"/>`;
+  else if(mood==='sick')o+=`<path d="M-25 -3 Q-17 3 -9 -3 M9 -3 Q17 3 25 -3" stroke="${ec}" stroke-width="3.5" fill="none" stroke-linecap="round"/><path d="M-25 7 Q-17 11 -9 7 M9 7 Q17 11 25 7" stroke="#5B3A55" stroke-opacity=".4" stroke-width="3" fill="none"/>`;
+  else o+=`<ellipse cx="-17" cy="-1" rx="5.5" ry="6.5" fill="${ec}"/><ellipse cx="17" cy="-1" rx="5.5" ry="6.5" fill="${ec}"/><circle cx="-15" cy="-3" r="1.8" fill="#fff"/><circle cx="19" cy="-3" r="1.8" fill="#fff"/>`;
+  if(p.glasses)o+=`<circle cx="-17" cy="-1" r="12" fill="#fff" fill-opacity=".08" stroke="#1C2226" stroke-width="3"/><circle cx="17" cy="-1" r="12" fill="#fff" fill-opacity=".08" stroke="#1C2226" stroke-width="3"/><path d="M-5 -2 H5" stroke="#1C2226" stroke-width="3"/>`;
+  o+=`<path d="M1 2 Q6 12 -2 14" stroke="#000" stroke-opacity=".25" stroke-width="2.5" fill="none" stroke-linecap="round"/>`;
+  const mc='#7A2C2C';
+  if(mood==='happy')o+=`<path d="M-15 24 Q0 40 15 24 Z" fill="${mc}"/><path d="M-11 25 Q0 29 11 25" stroke="#fff" stroke-width="3" fill="none"/>`;
+  else if(mood==='sick')o+=`<path d="M-11 31 Q-5 26 0 30 Q5 34 11 29" stroke="${mc}" stroke-width="3.5" fill="none" stroke-linecap="round"/>`;
+  else if(mood==='worried')o+=`<ellipse cy="30" rx="5" ry="6" fill="${mc}"/>`;
+  else o+=`<path d="M-10 28 Q0 32 10 28" stroke="${mc}" stroke-width="3.5" fill="none" stroke-linecap="round"/>`;
+  o+=`<circle cx="-27" cy="14" r="7" fill="#E8665E" opacity="${fever?.6:.25}"/><circle cx="27" cy="14" r="7" fill="#E8665E" opacity="${fever?.6:.25}"/>`;
+  if(mood==='sick')o+=`<ellipse rx="${p.hijab?40:45}" ry="${p.hijab?46:50}" fill="#8BD18A" opacity=".13"/>`;
+  if(fever)o+=`<path d="M40 -32 C35 -22 35 -15 40 -13 C45 -15 45 -22 40 -32Z" fill="#8AD8FF"/>`;
+  return o;
+}
+const OUT={gown:'#86BCD1',scrubs:'#2A9D8F',coat:'#EEF4F4',abaya:'#17171C',thobe:'#F1F1EB'};
+function bust(p,mood,fever){
+  const o=p.outfit||'gown';let b=`<rect x="-15" y="34" width="30" height="46" fill="${p.skin}"/><path d="M-112 162 C-112 96 -72 72 0 72 C72 72 112 96 112 162Z" fill="${OUT[o]}"/>`;
+  if(o==='gown')b+=`<path d="M-112 162 C-112 96 -72 72 0 72 C72 72 112 96 112 162Z" fill="url(#gownDots)"/>`;
+  if(o==='coat')b+=`<path d="M-16 74 L0 124 L16 74Z" fill="#2A9D8F"/><path d="M-32 76 L-6 134 L-22 78Z M32 76 L6 134 L22 78Z" fill="#CFDADA"/><path d="M-22 76 C-30 110 -8 130 0 128 C8 130 30 110 22 76" stroke="#1B2B33" stroke-width="5" fill="none"/>`;
+  if(o==='scrubs')b+=`<path d="M-24 74 L0 110 L24 74Z" fill="#1C7468"/>`;
+  if(o==='thobe')b+=`<path d="M0 76 V124" stroke="#C8C8BD" stroke-width="3"/>`;
+  return b+face(p,mood,fever);
+}
+function doctorSVG(p){
+  const s=p.skin;
+  return `<g id="docBody"><ellipse rx="74" ry="13" fill="#000" opacity=".45"/>
+  <rect x="-31" y="-124" width="25" height="116" rx="11" fill="#1D2E44"/><rect x="6" y="-124" width="25" height="116" rx="11" fill="#1D2E44"/>
+  <ellipse cx="-20" cy="-6" rx="21" ry="9" fill="#0C141C"/><ellipse cx="20" cy="-6" rx="21" ry="9" fill="#0C141C"/>
+  <path d="M-50 -244 L50 -244 L46 -112 L-46 -112Z" fill="#2A9D8F"/>
+  <path d="M-58 -242 C-68 -200 -72 -150 -68 -96 L-18 -96 L-6 -240Z" fill="#EEF4F4"/><path d="M58 -242 C68 -200 72 -150 68 -96 L18 -96 L6 -240Z" fill="#DDE7E7"/>
+  <path d="M-6 -240 L-24 -202 L-8 -182Z" fill="#CFDADA"/><path d="M6 -240 L24 -202 L8 -182Z" fill="#C6D3D3"/>
+  <path d="M-58 -240 C-80 -222 -86 -172 -82 -132 L-62 -130 C-62 -172 -58 -204 -50 -218Z" fill="#E5EDED"/><path d="M58 -240 C80 -222 86 -172 82 -132 L62 -130 C62 -172 58 -204 50 -218Z" fill="#D6E1E1"/>
+  <circle cx="-72" cy="-124" r="10" fill="${s}"/><circle cx="72" cy="-124" r="10" fill="${s}"/>
+  <rect x="58" y="-176" width="40" height="52" rx="4" fill="#8C6A44"/><rect x="63" y="-168" width="30" height="40" fill="#F7F6EF"/><path d="M68 -158 H88 M68 -150 H86 M68 -142 H84" stroke="#9AA" stroke-width="2"/>
+  <rect x="-46" y="-204" width="22" height="14" rx="3" fill="#3DDCC3"/>
+  <rect x="-12" y="-266" width="24" height="28" fill="${s}"/>
+  <path d="M-22 -240 C-30 -202 -10 -182 0 -184 C10 -182 30 -202 22 -240" stroke="#1B2B33" stroke-width="5" fill="none"/><circle cy="-180" r="7" fill="#9FB2B8"/>
+  <g transform="translate(0,-300) scale(.72)">${face(p,'neutral')}</g></g>`;
+}
+const ECG='M0 50 H40 L48 44 L56 50 H70 L76 60 L84 16 L92 74 L100 50 H118 L130 40 L144 50 H200 H240 L248 44 L256 50 H270 L276 60 L284 16 L292 74 L300 50 H318 L330 40 L344 50 H400';
+function windowSVG(x,i){
+  const L=x-85,T=120,w=170,h=210;
+  let stars='';for(let k=0;k<7;k++)stars+=`<circle cx="${L+12+((k*53+i*31)%150)}" cy="${T+12+((k*37+i*17)%90)}" r="${k%3?1.4:2.2}" fill="#fff" opacity=".7"/>`;
+  return `<g><rect x="${L-10}" y="${T-10}" width="${w+20}" height="${h+20}" rx="6" fill="#2E4A48"/>
+  <rect x="${L}" y="${T}" width="${w}" height="${h}" fill="url(#sky)"/>${stars}
+  ${i===1?`<circle cx="${L+120}" cy="${T+50}" r="22" fill="#F3EFD8"/><circle cx="${L+130}" cy="${T+44}" r="20" fill="url(#sky)"/>`:''}
+  <path d="M${L} ${T+h} V${T+150} H${L+30} V${T+120} H${L+52} V${T+160} H${L+80} V${T+105} H${L+104} V${T+140} H${L+130} V${T+128} H${L+150} V${T+165} H${L+w} V${T+h}Z" fill="#0A1226"/>
+  <g fill="#F6D36B" opacity=".6"><rect x="${L+36}" y="${T+130}" width="5" height="6"/><rect x="${L+86}" y="${T+116}" width="5" height="6"/><rect x="${L+92}" y="${T+150}" width="5" height="6"/><rect x="${L+136}" y="${T+140}" width="5" height="6"/></g>
+  ${i===2?`<rect id="peekGlow" x="${L}" y="${T}" width="${w}" height="${h}" fill="#FF2850" opacity="0"/><g clip-path="url(#peekClip)"><g id="peek" style="transform:translate(${x}px,450px)"><use href="#bugSym" x="-95" y="-95" width="190" height="190"/></g></g>`:''}
+  <path d="M${x} ${T} V${T+h} M${L} ${T+h/2} H${L+w}" stroke="#2E4A48" stroke-width="8"/>
+  <rect x="${L-18}" y="${T+h+6}" width="${w+36}" height="14" rx="4" fill="#3B5856"/></g>`;
+}
+function sceneSVG(){
+  let floorLines='';for(let k=-6;k<=16;k++)floorLines+=`<path d="M800 380 L${k*160} 900" stroke="#ffffff" stroke-opacity=".035" stroke-width="2"/>`;
+  [650,700,770,860].forEach(y=>floorLines+=`<path d="M0 ${y} H1600" stroke="#ffffff" stroke-opacity=".04" stroke-width="2"/>`);
+  let lamps='';BEDX.forEach((x,i)=>lamps+=`<ellipse class="${i===2?'flicker':''}" cx="${x}" cy="40" rx="300" ry="200" fill="url(#lampG)" opacity=".4"/><rect x="${x-95}" y="0" width="190" height="16" rx="4" fill="#CFE8E5"/><rect x="${x-80}" y="16" width="160" height="5" fill="#fff" opacity=".7"/>`);
+  return `<svg id="scene" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-label="جناح المستشفى">
+  <defs>
+    <linearGradient id="wallG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#16393A"/><stop offset="1" stop-color="#0B1F21"/></linearGradient>
+    <linearGradient id="floorG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0E1C1E"/><stop offset="1" stop-color="#040909"/></linearGradient>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop id="sk1" offset="0" stop-color="#070F2E"/><stop id="sk2" offset="1" stop-color="#1B2A5E"/></linearGradient>
+    <radialGradient id="lampG"><stop offset="0" stop-color="#D8FFF8"/><stop offset="1" stop-color="#D8FFF8" stop-opacity="0"/></radialGradient>
+    <clipPath id="peekClip"><rect x="1105" y="120" width="170" height="210"/></clipPath>
+    <clipPath id="ecgClip"><rect x="14" y="14" width="132" height="66"/></clipPath>
+  </defs>
+  <g id="world">
+    <rect width="1600" height="620" fill="url(#wallG)"/>
+    <rect y="500" width="1600" height="110" fill="#0F2A2A"/><rect y="500" width="1600" height="6" fill="#244744"/>
+    ${[430,810,1190].map((x,i)=>windowSVG(x,i)).join('')}
+    <g transform="translate(810,62)"><rect x="-120" y="-24" width="240" height="44" rx="8" fill="#0B1718" stroke="#3DDCC3" stroke-opacity=".5"/><text class="svgT" y="7" text-anchor="middle" direction="rtl" fill="#BDE9E2" font-size="20" font-weight="700">جناح ٧ · الباطنية</text></g>
+    <g transform="translate(430,62)"><circle r="26" fill="#E8EEEC" stroke="#2E4A48" stroke-width="5"/><path d="M0 0 L-9 -12 M0 0 L20 4" stroke="#1A2526" stroke-width="4" stroke-linecap="round"/><circle r="3" fill="#FF3B5C"/></g>
+    <g transform="translate(1190,62)"><rect x="-22" y="-26" width="44" height="54" rx="8" fill="#DCE7E6"/><rect x="-10" y="20" width="20" height="10" rx="3" fill="#3DDCC3"/><text class="svgT" y="6" text-anchor="middle" fill="#145" font-size="11" font-weight="700">معقّم</text></g>
+    ${lamps}
+    <rect y="610" width="1600" height="290" fill="url(#floorG)"/>${floorLines}
+    <rect y="604" width="1600" height="10" fill="#1A3634"/>
+    <path d="M0 0 H40 C30 200 50 400 30 640 H0Z" fill="#2B7C76" opacity=".55"/><path d="M1600 0 H1560 C1570 200 1550 400 1570 640 H1600Z" fill="#2B7C76" opacity=".55"/>
+    <g id="beds"></g>
+    <g id="spores"></g>
+    <g id="doc" style="transform:translate(1900px,880px)"></g>
+  </g></svg>`;
+}
+$('sceneHost').innerHTML=sceneSVG();
+
+function bedSVG(i){
+  const c=G.slots&&G.slots[i];if(!c)return '';
+  const cx=BEDX[i],st=c.st,cured=st==='right'||st==='over',mood=cured?'happy':'sick',click=st==='wait';
+  const hs=c.kid?.52:.6,hy=c.kid?526:520;
+  const stamp={right:['تعافى','#3DDCC3'],over:['تعافى · بسلاح ثقيل','#FFB23E'],wrong:['تحويل للعناية','#FF3B5C'],timeout:['حالة حرجة','#FF3B5C']}[st];
+  const sw=stamp?Math.max(150,stamp[0].length*17):0;
+  return `<g class="bed${click?' clickable':''}" id="bed${i}" data-i="${i}" ${click?`tabindex="0" role="button" aria-label="علاج ${c.name}"`:''}>
+  <rect x="${cx-215}" y="240" width="410" height="450" fill="transparent"/>
+  <rect class="bedglow" x="${cx-205}" y="252" width="390" height="430" rx="22" fill="#3DDCC3" fill-opacity=".05" stroke="#3DDCC3" stroke-width="3" stroke-dasharray="12 6"/>
+  <path d="M${cx-190} 360 V668 M${cx-214} 668 H${cx-166}" stroke="#6E8A88" stroke-width="6" stroke-linecap="round"/>
+  <rect x="${cx-212}" y="364" width="44" height="64" rx="12" fill="#BFE6E6" opacity=".75"/><path d="M${cx-190} 428 Q${cx-176} 520 ${cx-120} 562" stroke="#BFE6E6" stroke-width="2.5" fill="none" opacity=".7"/>
+  <g transform="translate(${cx-150},290)">
+    <rect x="98" y="-46" width="14" height="46" fill="#24403E"/>
+    <rect width="210" height="132" rx="14" fill="#0A1517" stroke="#2C4C49" stroke-width="3"/>
+    <rect x="10" y="10" width="190" height="92" rx="6" fill="#020C0D"/>
+    <g clip-path="url(#ecgClip)"><g transform="translate(14,0)"><g class="ecg" id="ecg${i}"><path d="${st==='wrong'||st==='timeout'?'M0 50 H400':ECG}" fill="none" stroke="${cured?'#3DDCC3':(st==='wrong'||st==='timeout')?'#FF3B5C':'#7CFFB2'}" stroke-width="3" stroke-linejoin="round"/></g></g></g>
+    <text x="196" y="46" text-anchor="end" class="hr" id="hr${i}" fill="#7CFFB2">--</text><text x="196" y="64" text-anchor="end" class="hrl">HR</text>
+    <rect x="16" y="84" width="178" height="10" rx="5" fill="#0F2427"/><rect x="16" y="84" width="178" height="10" rx="5" id="vit${i}" fill="#3DDCC3"/>
+    <text x="105" y="122" text-anchor="middle" class="plate" direction="rtl">${c.name} · ${c.age} سنة</text>
+  </g>
+  <g id="alert${i}" transform="translate(${cx-45},262)" opacity="0"><circle r="17" fill="#FF3B5C"/><text y="8" text-anchor="middle" class="excl">!</text></g>
+  <rect x="${cx-170}" y="466" width="22" height="206" rx="9" fill="#B5C6C4"/><rect x="${cx+142}" y="526" width="20" height="146" rx="9" fill="#B5C6C4"/>
+  <rect x="${cx-152}" y="556" width="298" height="46" rx="13" fill="#DCE8E7"/>
+  <ellipse cx="${cx-104}" cy="550" rx="54" ry="23" fill="#F4F8F8"/>
+  <g id="head${i}" transform="translate(${cx-100},${hy}) scale(${hs})">${face(c.ch,mood,c.fever&&!cured)}</g>
+  <path d="M${cx-78} 602 L${cx-78} 570 C${cx-66} 542 ${cx-24} 536 ${cx+20} 542 C${cx+80} 548 ${cx+120} 550 ${cx+148} 562 L${cx+148} 602Z" fill="${cured?'#2A9D8F':c.blanket}"/>
+  <path d="M${cx-78} 574 C${cx-40} 564 ${cx} 564 ${cx+40} 568" stroke="#fff" stroke-opacity=".28" stroke-width="6" fill="none"/>
+  <circle cx="${cx-28}" cy="568" r="10" fill="${c.ch.skin}"/>
+  <rect x="${cx-172}" y="600" width="336" height="20" rx="6" fill="#8FA3A2"/>
+  <rect x="${cx-152}" y="620" width="11" height="42" fill="#6F8483"/><rect x="${cx+132}" y="620" width="11" height="42" fill="#6F8483"/>
+  <circle cx="${cx-146}" cy="668" r="10" fill="#1B2627"/><circle cx="${cx+138}" cy="668" r="10" fill="#1B2627"/>
+  ${stamp?`<g transform="translate(${cx+30},585) rotate(-7)"><rect x="${-sw/2}" y="-26" width="${sw}" height="50" rx="8" fill="#000" fill-opacity=".55" stroke="${stamp[1]}" stroke-width="4"/><text class="stampT" y="10" text-anchor="middle" direction="rtl" fill="${stamp[1]}">${stamp[0]}</text></g>`:''}
+  </g>`;
+}
+function renderBeds(){$('beds').innerHTML=[0,1,2,3].map(bedSVG).join('');[0,1,2,3].forEach(updateVitals)}
+function renderBed(i){const el=$('bed'+i);if(el)el.outerHTML=bedSVG(i);else $('beds').insertAdjacentHTML('beforeend',bedSVG(i));updateVitals(i)}
+function updateVitals(i){
+  const c=G.slots&&G.slots[i];if(!c)return;const v=$('vit'+i),hr=$('hr'+i),al=$('alert'+i),e=$('ecg'+i);if(!v)return;
+  const h=Math.max(0,c.h),cured=c.st==='right'||c.st==='over',dead=c.st==='wrong'||c.st==='timeout';
+  v.setAttribute('width',(178*(cured?100:h)/100).toFixed(1));
+  v.setAttribute('fill',cured?'#3DDCC3':h>60?'#3DDCC3':h>30?'#FFB23E':'#FF3B5C');
+  hr.textContent=dead?'---':cured?'78':Math.round(92+(100-h)*.6);
+  hr.setAttribute('fill',dead?'#FF3B5C':h>30||cured?'#7CFFB2':'#FF3B5C');
+  e.style.animationDuration=cured?'1.8s':h<30?'.7s':'1.3s';
+  if(dead)e.style.animation='none';
+  const warn=!cured&&!dead&&h<35;al.setAttribute('opacity',warn?1:0);al.classList.toggle('alert-on',warn);
+}
+
+/* ================= HUD & resistance ================= */
+const segs=$('segs');for(let i=0;i<20;i++)segs.appendChild(document.createElement('i'));
+const sporeSeed=[];(function(){let s=11;const r=()=>{s=(s*9301+49297)%233280;return s/233280};for(let i=0;i<40;i++)sporeSeed.push([40+r()*1520,650+r()*230,4+r()*9,r()])})();
+function setRes(r,glitch){
+  r=Math.max(0,Math.min(100,r));
+  $('hRes').textContent=r+'٪';
+  [...segs.children].forEach((s,k)=>{s.className=k<Math.round(r/5)?(k<8?'on low':'on'):''});
+  document.querySelector('.stage').style.setProperty('--danger',(r/100).toFixed(2));
+  $('peek').style.transform=`translate(1190px,${450-2.2*r}px)`;
+  $('peekGlow').setAttribute('opacity',(r/100*.45).toFixed(2));
+  let sp='';const n=Math.round(r/2.6);for(let i=0;i<n;i++){const [x,y,rad,t]=sporeSeed[i];sp+=`<circle class="spore" style="animation-delay:${(t*2).toFixed(2)}s" cx="${x}" cy="${y}" r="${rad}" fill="${t>.5?'#FF3B5C':'#B0216A'}" opacity=".7"/>`}
+  $('spores').innerHTML=sp;
+  if(glitch){$('gauge').classList.remove('glitch');void $('gauge').offsetWidth;$('gauge').classList.add('glitch')}
+}
+function hud(){
+  $('hScore').textContent=G.score;
+  const done=G.slots.filter(c=>c.st!=='wait'&&c.st!=='active').length;
+  $('hWave').textContent=`الموجة ${G.wave===0?'١':'٢'} · ${done}/4 مرضى`;
+}
+
+/* ================= camera / doctor ================= */
+function camera(i){
+  const w=$('world');
+  if(i==null){w.style.transform='none';return}
+  // fit the bed (monitor → blanket) into the part of the stage not covered by the HUD or a floating panel
+  const st=$('stage').getBoundingClientRect(),W=st.width,H=st.height;
+  const k=Math.max(W/1600,H/900),ox=(W-1600*k)/2,oy=(H-900*k)/2;
+  const hudB=$('hud').hidden?0:$('hud').getBoundingClientRect().bottom-st.top;
+  let bottom=H;
+  if(isOverlay())['dlg','learnP'].forEach(id=>{const p=$(id);if(!p.hidden)bottom=Math.min(bottom,p.getBoundingClientRect().top-st.top-8)});
+  const top=Math.max(0,hudB)+6,avail=Math.max(80,bottom-top);
+  const ux0=BEDX[i]-215,ux1=BEDX[i]+200,uy0=282,uy1=612;
+  let sc=Math.min(avail/((uy1-uy0)*k),(W*.9)/((ux1-ux0)*k),1.9);sc=Math.max(sc,1);
+  const sx=W/2,sy=top+avail/2,ux=(ux0+ux1)/2,uy=(uy0+uy1)/2;
+  let tx=(sx-ox)/k-sc*ux,ty=(sy-oy)/k-sc*uy;
+  // keep the zoomed world covering the viewBox so no empty edges show
+  tx=Math.min(0,Math.max(1600-1600*sc,tx));ty=Math.min(0,Math.max(900-900*sc,ty));
+  w.style.transform=`translate(${tx}px,${ty}px) scale(${sc})`;
+}
+function isOverlay(){return matchMedia('(min-width:900px) and (min-height:600px)').matches}
+window.addEventListener('resize',()=>{if(G.active>=0&&(G.phase==='case'||G.phase==='learn'))camera(G.active)});
+function moveDoctor(x,instant){
+  const d=$('doc');if(instant){d.style.transition='none';d.style.transform=`translate(${x}px,880px)`;void d.offsetWidth;d.style.transition='';return}
+  d.classList.add('walking');d.style.transform=`translate(${x}px,880px)`;
+  clearTimeout(moveDoctor.t);moveDoctor.t=setTimeout(()=>d.classList.remove('walking'),1000);
+}
+
+/* ================= FX ================= */
+const fxc=$('fx'),fx=fxc.getContext('2d');let parts=[],fxRun=false;
+function sizeFx(){const r=fxc.getBoundingClientRect(),d=devicePixelRatio||1;fxc.width=r.width*d;fxc.height=r.height*d;fx.setTransform(d,0,0,d,0,0)}
+new ResizeObserver(sizeFx).observe(fxc);
+function burst(x,y,colors,n,opt={}){
+  if(reduce)return;
+  for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,sp=(opt.speed||6)*(.3+Math.random());
+    parts.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-(opt.up||0),g:opt.g??.12,life:1,dec:.012+Math.random()*.015,r:(opt.size||4)*(.5+Math.random()),c:colors[i%colors.length],sq:opt.confetti,rot:Math.random()*6})}
+  if(!fxRun){fxRun=true;requestAnimationFrame(fxLoop)}
+}
+function fxLoop(){
+  const r=fxc.getBoundingClientRect();fx.clearRect(0,0,r.width,r.height);
+  parts=parts.filter(p=>p.life>0);
+  for(const p of parts){p.x+=p.vx;p.y+=p.vy;p.vy+=p.g;p.vx*=.985;p.life-=p.dec;p.rot+=.1;fx.globalAlpha=Math.max(0,p.life);fx.fillStyle=p.c;
+    if(p.sq){fx.save();fx.translate(p.x,p.y);fx.rotate(p.rot);fx.fillRect(-p.r,-p.r/2,p.r*2,p.r);fx.restore()}
+    else{fx.beginPath();fx.arc(p.x,p.y,p.r,0,7);fx.fill()}}
+  fx.globalAlpha=1;
+  if(parts.length)requestAnimationFrame(fxLoop);else fxRun=false;
+}
+function headPos(i){const h=$('head'+i),s=$('stage').getBoundingClientRect();if(!h)return [s.width/2,s.height/2];const r=h.getBoundingClientRect();return [r.left+r.width/2-s.left,r.top+r.height/2-s.top]}
+function flash(color){const f=$('flash');f.style.background=color;f.classList.remove('go');void f.offsetWidth;f.classList.add('go')}
+function shake(){const s=$('stage');s.classList.remove('shake');void s.offsetWidth;s.classList.add('shake')}
+function banner(kind,big,sub){const b=$('banner');b.className='banner '+kind;b.firstChild.textContent=big;b.lastChild.textContent=sub;void b.offsetWidth;b.classList.add('go')}
+function combo(n){const c=$('combo');c.textContent=`سلسلة ×${n}!`;c.classList.remove('go');void c.offsetWidth;c.classList.add('go')}
+const TAUNTS=['شكرًا… تعلّمت حركة جديدة!','كل غلطة تخليني أقوى!','مضادك صار لعبة عندي','استمر، أنا أتدرّب عليك'];
+const TAUNT_OVER=['هه… قوّيتني شوي','سلاح ثقيل؟ بتعوّد عليه'];
+async function taunt(text){$('tauntTx').textContent=text;$('taunt').classList.add('on');SFX.growl();await sleep(1900);$('taunt').classList.remove('on')}
+function toast(t,ms=2200){const e=$('toast');e.textContent=t;e.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>e.hidden=true,ms)}
+
+/* ================= CONTENT ================= */
+const KB=`<svg viewBox="0 0 220 220" aria-label="طبق اختبار الحساسية"><circle cx="110" cy="110" r="104" fill="#BDB6A3"/><circle cx="110" cy="110" r="97" fill="#D9A441"/><defs><pattern id="lawn" width="7" height="7" patternUnits="userSpaceOnUse"><circle cx="3" cy="3" r="1.3" fill="#B07F22"/></pattern></defs><circle cx="110" cy="110" r="97" fill="url(#lawn)"/>
+<circle cx="60" cy="78" r="7" fill="#fff" stroke="#333"/><text x="60" y="82" text-anchor="middle" font-size="10" font-weight="700" fill="#222">A</text>
+<circle cx="152" cy="82" r="30" fill="#F2E7C9"/><circle cx="152" cy="82" r="7" fill="#fff" stroke="#333"/><text x="152" y="86" text-anchor="middle" font-size="10" font-weight="700" fill="#222">B</text>
+<circle cx="106" cy="152" r="14" fill="#F2E7C9"/><circle cx="106" cy="152" r="7" fill="#fff" stroke="#333"/><text x="106" y="156" text-anchor="middle" font-size="10" font-weight="700" fill="#222">C</text>
+<g font-size="12" font-weight="700" fill="#2B2418" text-anchor="middle"><text x="60" y="102">6 mm</text><text x="152" y="128">24 mm</text><text x="106" y="182">11 mm</text></g></svg>`;
+const C=[
+ {id:'sara',name:'سارة',age:22,g:'f',ch:{skin:'#E8B892',hijab:'#6B4E8A'},blanket:'#5A6FA8',fever:true,
+  line:'دكتور الله يسعدك، زكام وسيلان وكحة من يومين. عطني مضاد حيوي عشان أخلص بسرعة، عندي اختبار!',
+  rep:[['الحرارة','37.9 °C'],['فحص الإنفلونزا','سلبي'],['البكتيريا العقدية','سلبي'],['التشخيص المبدئي','زكام فيروسي',1]],
+  q:'وش تقرر لسارة؟',
+  opts:[{t:'راحة وسوائل وخافض حرارة، بدون مضاد حيوي',k:'right',ic:'rest',fb:'الزكام سببه فيروس، والمضاد الحيوي يقتل البكتيريا فقط.'},
+   {t:'أموكسيسيلين لمدة ٧ أيام',k:'wrong',ic:'pill',fb:'لن يؤثر على الفيروس، لكنه يعرّض بكتيريا جسمها النافعة للمضاد فتتدرّب على مقاومته.'},
+   {t:'مضاد واسع الطيف «للاحتياط»',k:'wrong',ic:'iv',fb:'«للاحتياط» من أكثر أسباب المقاومة شيوعًا. لا توجد بكتيريا هنا لنعالجها.'}],
+  learn:'المضادات الحيوية <b>لا تعالج الفيروسات</b> مثل الزكام والإنفلونزا ومعظم التهابات الحلق.'},
+ {id:'khalid',name:'خالد',age:10,g:'m',kid:true,ch:{skin:'#D9A27A',hair:'kid',hairColor:'#20140F'},blanket:'#C1693C',fever:true,
+  sp:{name:'أم خالد',role:'مرافقة',ch:{skin:'#D9A27A',hijab:'#1C1C22',outfit:'abaya'}},
+  line:'دكتور، ولدي حرارته عالية وحلقه يعوّره مرة، ما يقدر يبلع حتى الموية. فيه صديد على اللوز.',
+  rep:[['الحرارة','39.2 °C'],['Rapid Strep','إيجابي'],['الميكروب','Group A Strep']],
+  q:'أي علاج تكتب لخالد؟',
+  opts:[{t:'بنسلين أو أموكسيسيلين',k:'right',ic:'pill',fb:'مضاد ضيق الطيف يقضي على العقدية، وما زالت هذه البكتيريا حساسة للبنسلين.'},
+   {t:'ميروبينيم (Meropenem) وريدي',k:'over',ic:'iv',fb:'سيعالجه، لكنه سلاح احتياطي للعدوى الخطيرة. استخدامه هنا يضغط على بكتيريا كثيرة بلا داعٍ.'},
+   {t:'لا شيء، غالبًا فيروس',k:'wrong',ic:'no',fb:'الفحص أثبت أنها بكتيريا. تركها بلا علاج قد يسبب مضاعفات مثل الحمى الروماتيزمية.'}],
+  learn:'<b>القاعدة الذهبية:</b> اختر أضيق مضاد يكفي للقضاء على البكتيريا المسببة.'},
+ {id:'mona',name:'منى',age:30,g:'f',ch:{skin:'#C9906A',hijab:'#2F6F73'},blanket:'#7A5BA0',
+  line:'عندي حرقان وتكرار في التبول من أمس، بس ما عندي حرارة ولا ألم في الظهر.',
+  rep:[['مزرعة البول','E. coli'],['Nitrofurantoin','حساس (S)'],['الحالة','التهاب مثانة غير معقد',1]],
+  q:'أي مضاد يناسب منى؟',
+  opts:[{t:'نيتروفورانتوين (Nitrofurantoin)',k:'right',ic:'pill',fb:'يتركز في المثانة، والمزرعة أثبتت حساسية البكتيريا له.'},
+   {t:'فانكومايسين (Vancomycin)',k:'wrong',ic:'syr',fb:'يستهدف البكتيريا موجبة الجرام، و E. coli سالبة الجرام فلن يؤثر عليها.'},
+   {t:'ميروبينيم وريدي',k:'over',ic:'iv',fb:'قوي جدًا لحالة بسيطة. يعالجها لكنه يستهلك ورقة نحتاجها للحالات الخطيرة.'}],
+  learn:'تقرير <b>المزرعة والحساسية</b> (Culture & Sensitivity) من المختبر يحدد المضاد الصحيح بدل التخمين.'},
+ {id:'majed',name:'ماجد',age:45,g:'m',ch:{skin:'#B9835C',hair:'short',hairColor:'#1D1410',beard:true},blanket:'#3F7F6C',fever:true,
+  sp:{name:'عبدالرحمن',role:'فني المختبر',ch:{skin:'#E6B48C',hair:'short',hairColor:'#3A2618',glasses:true,outfit:'coat'}},
+  line:'دكتور، طلع طبق الحساسية لعينة ماجد. حطينا ٣ أقراص مضادات وقسنا مناطق التثبيط بعد ١٨ ساعة حضانة.',
+  rep:[['الاختبار','Kirby-Bauer'],['الوسط','Mueller-Hinton']],vis:KB,
+  q:'أي مضاد البكتيريا أكثر حساسية له؟',
+  opts:[{t:'المضاد B · منطقة ٢٤ ملم',k:'right',ic:'plate',fb:'أكبر منطقة صافية تعني أن البكتيريا عجزت عن النمو قرب هذا المضاد.'},
+   {t:'المضاد A · ٦ ملم',k:'wrong',ic:'plate',fb:'٦ ملم هو قطر القرص نفسه، أي لا تثبيط إطلاقًا: البكتيريا مقاومة له.'},
+   {t:'المضاد C · ١١ ملم',k:'wrong',ic:'plate',fb:'منطقة صغيرة والبكتيريا تنمو قريبًا منه، غالبًا متوسطة الحساسية أو مقاومة.'}],
+  learn:'اختبار <b>كيربي-باور</b>: يُقارن قطر منطقة التثبيط بجداول مرجعية مثل CLSI و EUCAST لتحديد حساس / متوسط / مقاوم.'},
+ {id:'fahad',name:'فهد',age:19,g:'m',ch:{skin:'#D7A17A',hair:'short',hairColor:'#120C09'},blanket:'#4E6E9C',
+  line:'الحمدلله صرت أحسن! باقي لي ٤ أيام من المضاد، بوقفه الحين وأخلي الباقي للمرة الجاية.',
+  rep:[['الوصفة','مضاد لمدة ٧ أيام',1],['اليوم','الثالث',1],['الأعراض','تتحسن',1]],
+  q:'بماذا تنصح فهد قبل خروجه؟',
+  opts:[{t:'يكمل حسب وصفة الطبيب، ولا يوقف إلا باستشارته',k:'right',ic:'clock',fb:'تحسّن الأعراض لا يعني انتهاء العدوى. الطبيب وحده يقرر تقصير المدة.'},
+   {t:'يوقف الآن ويحتفظ بالباقي',k:'wrong',ic:'pill',fb:'قد تنجو البكتيريا الأقوى، والبقايا المخزنة تُستخدم لاحقًا بلا تشخيص.'},
+   {t:'يضاعف الجرعة ليخلص أسرع',k:'wrong',ic:'pill',fb:'الجرعة محسوبة بدقة، ومضاعفتها تزيد الأعراض الجانبية ولا تختصر العلاج.'}],
+  learn:'التزم بالجرعة والمدة كما وصفها الطبيب، و<b>لا تحتفظ ببقايا المضادات</b>.'},
+ {id:'noura',name:'نورة',age:24,g:'f',ch:{skin:'#EBC09E',hijab:'#8A3B4F'},blanket:'#9A6B3F',fever:true,
+  sp:{name:'هيفاء',role:'أخت المريضة',ch:{skin:'#EBC09E',hijab:'#3B3F6B',outfit:'abaya'}},
+  line:'دكتور، عندي بقايا مضاد من علاجي الشهر اللي فات. خلني أعطيها إياه الحين وتخف بسرعة!',
+  rep:[['الحرارة','38.6 °C'],['السبب','لم يُشخّص بعد',1]],
+  q:'وش تقول لهيفاء؟',
+  opts:[{t:'لا، نسحب مزرعة ونشخّص السبب أولًا',k:'right',ic:'flask',fb:'الحرارة لها أسباب كثيرة، وقد لا تكون بكتيرية أصلًا.'},
+   {t:'تعطيها نصف الكمية',k:'wrong',ic:'pill',fb:'جرعة ناقصة لمضاد قد يكون خاطئًا: أفضل بيئة لتدريب البكتيريا على المقاومة.'},
+   {t:'تعطيها كاملة لأن الأعراض متشابهة',k:'wrong',ic:'pill',fb:'تشابه الأعراض لا يعني نفس الميكروب، والمضاد غير المناسب لا يفيد.'}],
+  learn:'كل وصفة لشخص وتشخيص محددين. <b>لا تشارك المضادات</b>، وتخلّص من البقايا عبر الصيدلية.'},
+ {id:'abuabdullah',name:'أبو عبدالله',age:55,g:'m',ch:{skin:'#B07A52',hair:'bald',hairColor:'#C4C0B8',beard:true,wrinkles:true},blanket:'#6B5A8E',fever:true,
+  line:'الخراج اللي في رجلي يكبر وحار، والحبوب اللي أخذتها من الصيدلية ما نفعت أبد.',
+  rep:[['المزرعة','S. aureus'],['Methicillin','مقاوم (R)'],['التصنيف','MRSA']],
+  q:'أي مضاد يؤثر على هذه البكتيريا؟',
+  opts:[{t:'فانكومايسين (Vancomycin)',k:'right',ic:'syr',fb:'من الخيارات المعتمدة لعلاج عدوى MRSA الشديدة.'},
+   {t:'أموكسيسيلين',k:'wrong',ic:'pill',fb:'MRSA مقاومة لمعظم مضادات البيتا لاكتام، ومنها البنسلينات.'},
+   {t:'سيفالكسين (Cephalexin)',k:'wrong',ic:'pill',fb:'من السيفالوسبورينات، وهي بيتا لاكتام أيضًا ولا تؤثر على MRSA.'}],
+  learn:'<b>MRSA</b> مثال حي على بكتيريا طوّرت مقاومة بسبب الاستخدام الواسع للمضادات.'},
+ {id:'reem',name:'ريم',age:27,g:'f',ch:{skin:'#F0C8A4',hijab:'#C98B3E'},blanket:'#3D7A8A',
+  line:'بعد كورس المضاد الطويل طلعت لي طبقة بيضاء في فمي وتحرقني لما آكل.',
+  rep:[['الفحص المجهري','Candida albicans'],['النوع','فطر',1]],
+  q:'ما العلاج المناسب لريم؟',
+  opts:[{t:'مضاد فطريات',k:'right',ic:'shield',fb:'الكانديدا فطر، والفطريات لا تتأثر بالمضادات الحيوية.'},
+   {t:'كورس مضاد حيوي ثانٍ',k:'wrong',ic:'pill',fb:'قد يزيدها سوءًا: المضاد الأول قضى على البكتيريا النافعة التي كانت تكبح الفطر.'},
+   {t:'لا شيء، بتختفي وحدها',k:'wrong',ic:'no',fb:'الفحص أكد العدوى وتحتاج علاجًا مناسبًا.'}],
+  learn:'المضاد الحيوي يقتل البكتيريا النافعة أيضًا، فيختل توازن <b>الفلورا الطبيعية</b>.'},
+ {id:'saad',name:'العم سعد',age:70,g:'m',ch:{skin:'#A87452',hair:'bald',hairColor:'#D4D0C8',beard:true,wrinkles:true},blanket:'#8E4A4A',
+  sp:{name:'الممرضة لمى',role:'رئيسة التمريض',ch:{skin:'#C68D66',hijab:'#E3EAEC',outfit:'scrubs'}},
+  line:'دكتور، العم سعد عنده بكتيريا مقاومة، وخايفين تنتقل لباقي مرضى الجناح.',
+  rep:[['الحالة','بكتيريا مقاومة',1],['العزل','احتياطات التلامس',1]],
+  q:'ما الإجراء الأهم لمنع انتقالها؟',
+  opts:[{t:'غسل اليدين أو تعقيمهما قبل وبعد كل مريض',k:'right',ic:'hand',fb:'الأيدي أكثر وسيلة تنقل البكتيريا بين المرضى في المستشفيات.'},
+   {t:'إعطاء جميع المرضى مضادًا وقائيًا',k:'wrong',ic:'iv',fb:'يزيد الضغط على البكتيريا وينشر المقاومة بدل منعها.'},
+   {t:'تغيير مضاد العم سعد كل يوم',k:'wrong',ic:'pill',fb:'لا يمنع الانتقال ويعرّض البكتيريا لمضادات أكثر.'}],
+  learn:'<b>الوقاية</b> من العدوى (نظافة اليدين، التطعيمات) تقلل الحاجة للمضادات من الأساس.'},
+ {id:'turki',name:'تركي',age:60,g:'m',ch:{skin:'#BE8961',hair:'short',hairColor:'#6A645C',beard:true},blanket:'#4A6A8E',fever:true,
+  sp:{name:'د. سلطان',role:'طبيب امتياز',ch:{skin:'#D49C74',hair:'short',hairColor:'#1A120D',outfit:'coat'}},
+  line:'دكتور، صبغة جرام لمزرعة دم تركي طلعت عصيات وردية. ليش يقولون سالبة الجرام صعبة العلاج؟',
+  rep:[['العينة','مزرعة دم',1],['Gram stain','Gram-negative rods']],
+  q:'وش تشرح للدكتور سلطان؟',
+  opts:[{t:'لها غشاء خارجي يمنع دخول بعض المضادات',k:'right',ic:'shield',fb:'الغشاء الخارجي حاجز إضافي يحمي طبقة الببتيدوجلايكان الرقيقة.'},
+   {t:'لأنها بلا جدار خلوي',k:'wrong',ic:'no',fb:'لها جدار خلوي رقيق، وليست بلا جدار.'},
+   {t:'لأن لونها الوردي يحميها',k:'wrong',ic:'talk',fb:'اللون نتيجة الصبغة فقط ولا علاقة له بالمقاومة.'}],
+  learn:'سالبة الجرام: <b>ببتيدوجلايكان رقيق + غشاء خارجي</b>، لذلك تفقد الكريستال البنفسجي وتأخذ لون السفرانين.'},
+ {id:'yousef',name:'يوسف',age:16,g:'m',kid:true,ch:{skin:'#DDA882',hair:'kid',hairColor:'#1A110C'},blanket:'#5C8A4E',
+  sp:{name:'الجدة',role:'مرافقة',ch:{skin:'#C99470',hijab:'#EEEDE8',outfit:'abaya',wrinkles:true}},
+  line:'يا دكتور لا تكثرون عليه المضادات، جسمه يتعوّد عليها وتبطّل تنفع!',
+  rep:[['السؤال','من يقاوم المضاد؟',1]],
+  q:'وش تصحّح للجدة؟',
+  opts:[{t:'البكتيريا هي اللي تقاوم، عبر طفرات وانتقال جينات المقاومة',k:'right',ic:'dna',fb:'كل استخدام يقتل الحساسة ويُبقي المقاومة لتتكاثر وتنقل جيناتها.'},
+   {t:'صح، جسم الإنسان يتعوّد على المضاد',k:'wrong',ic:'talk',fb:'خرافة شائعة: الجسم لا يقاوم المضاد، البكتيريا هي التي تتغير.'},
+   {t:'المضاد يضعف مع الوقت داخل العلبة',k:'wrong',ic:'pill',fb:'انتهاء الصلاحية موضوع آخر، وليس سبب مقاومة البكتيريا.'}],
+  learn:'المقاومة <b>انتقاء طبيعي</b>: المضاد يفرز البكتيريا، والناجية تورّث المقاومة وقد تنقلها لبكتيريا أخرى.'}
+];
+const ICONS={
+ pill:'<path d="M10.5 3.5a5 5 0 017 7l-7 7a5 5 0 01-7-7z"/><path d="M7 7l7 7"/>',
+ iv:'<path d="M8 2h8v9a4 4 0 01-8 0z"/><path d="M12 15v7M9 19h6"/>',
+ syr:'<path d="M18 2l4 4M15 5l4 4M17 7L8 16l-4 0 0-4 9-9"/><path d="M4 20l3-3"/>',
+ rest:'<path d="M12 3c3 4 6 7 6 11a6 6 0 01-12 0c0-4 3-7 6-11z"/>',
+ no:'<circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/>',
+ hand:'<path d="M7 11V5a1.5 1.5 0 013 0v5M10 10V4a1.5 1.5 0 013 0v6M13 10V5a1.5 1.5 0 013 0v7M16 12v-2a1.5 1.5 0 013 0v4a7 7 0 01-7 7h-1a6 6 0 01-5-3l-2.5-4a1.5 1.5 0 012.5-1.7L7 14"/>',
+ talk:'<path d="M4 5h16v11H9l-5 4z"/>',
+ flask:'<path d="M9 2h6M10 2v6L4 19a2 2 0 002 3h12a2 2 0 002-3l-6-11V2"/><path d="M7 15h10"/>',
+ plate:'<circle cx="12" cy="12" r="9"/><circle cx="9" cy="10" r="2"/><circle cx="15" cy="14" r="3"/>',
+ dna:'<path d="M7 3c0 6 10 6 10 12s-10 6-10 6M17 3c0 6-10 6-10 12M8 7h8M8 17h8"/>',
+ shield:'<path d="M12 3l8 3v6c0 5-4 8-8 9-4-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
+ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'};
+const ico=k=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[k]||ICONS.pill}</svg>`;
+
+/* ================= LEADERBOARD ================= */
+const LBK='amr-war-lb-v2';
+const lbLoad=()=>{try{return JSON.parse(localStorage.getItem(LBK)||'[]')}catch(e){return []}};
+const lbSave=a=>{try{localStorage.setItem(LBK,JSON.stringify(a))}catch(e){}};
+function lbRender(){
+  const a=lbLoad();['lb1','lb2'].forEach(id=>{const ol=$(id);ol.innerHTML='';
+    if(!a.length){const p=document.createElement('p');p.className='empty';p.textContent='لا توجد نتائج بعد. كن أول بطل!';ol.appendChild(p);return}
+    a.slice(0,6).forEach(r=>{const li=document.createElement('li');const n=document.createElement('span');n.className='n';n.textContent=r.n;const w=document.createElement('span');w.className='w '+(r.w?'win':'lose');w.textContent=r.w?'فوز':'خسارة';const s=document.createElement('b');s.textContent=r.s;li.append(n,w,s);ol.appendChild(li)})})}
+let clrArm=false;$('clr').onclick=()=>{if(!clrArm){clrArm=true;$('clr').textContent='اضغط مرة ثانية للتأكيد';setTimeout(()=>{clrArm=false;$('clr').textContent='مسح اللوحة'},3000);return}lbSave([]);clrArm=false;$('clr').textContent='مسح اللوحة';lbRender()};
+
+/* ================= TITLE ================= */
+const DOCS={f:{skin:'#D6A27C',hijab:'#1F2A44',outfit:'coat'},m:{skin:'#C99A72',hair:'short',hairColor:'#1A120C',beard:true,outfit:'coat'}};
+let docG='f';
+document.querySelector('#pickF svg').innerHTML=bust(DOCS.f,'happy');
+document.querySelector('#pickM svg').innerHTML=bust(DOCS.m,'happy');
+function pick(g){docG=g;$('pickF').setAttribute('aria-pressed',g==='f');$('pickM').setAttribute('aria-pressed',g==='m')}
+$('pickF').onclick=()=>pick('f');$('pickM').onclick=()=>pick('m');
+function idleScene(){
+  G.slots=shuffle(C).slice(0,4).map(c=>({...c,st:'wait',h:100}));renderBeds();
+  [...document.querySelectorAll('.bed')].forEach(b=>{b.classList.remove('clickable');b.removeAttribute('tabindex')});
+  $('doc').innerHTML=doctorSVG(DOCS.f);moveDoctor(800,true);setRes(55);
+}
+
+/* ================= GAME FLOW ================= */
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function panels(id){['titleP','dlg','learnP','endP'].forEach(p=>$(p).hidden=p!==id)}
+function resetScene(){
+  $('world').style.filter='';$('dawn').classList.remove('on');$('bigbug').classList.remove('on');
+  $('sk1').setAttribute('stop-color','#070F2E');$('sk2').setAttribute('stop-color','#1B2A5E');camera(null);
+}
+
+async function startGame(){
+  SFX.init();if(SFX.a&&SFX.a.state==='suspended')SFX.a.resume();
+  const raw=$('pname').value.trim();
+  const title=docG==='f'?'د.':'د.';
+  G.doc={g:docG,p:DOCS[docG],name:raw?`${title} ${raw}`:(docG==='f'?'الطبيبة المناوبة':'الطبيب المناوب'),player:raw||'بدون اسم'};
+  G.timed=!$('notimer').checked;
+  G.deck=shuffle(C).slice(0,8);G.wave=0;G.score=0;G.res=0;G.streak=0;G.right=0;G.active=-1;G.answering=false;
+  G.slots=G.deck.slice(0,4).map(c=>({...c,st:'wait',h:100}));
+  resetScene();renderBeds();setRes(0);
+  $('doc').innerHTML=doctorSVG(G.doc.p);moveDoctor(1950,true);
+  $('hudFace').innerHTML=face(G.doc.p,'neutral');$('hDoc').textContent=G.doc.name;
+  panels(null);hud();
+  await intro();
+}
+async function intro(){
+  G.phase='cine';G.cine=true;G.skip=false;$('skip').hidden=false;$('hud').hidden=true;
+  const st=$('stage');st.classList.add('letterbox');
+  await sleep(500);moveDoctor(800);
+  const f=G.doc.g==='f';
+  const lines=['مستشفى الجامعة · جناح ٧ · الساعة ٢:٤٧ فجرًا',
+    'في هذا الجناح تختبئ بكتيريا خارقة… تتعلم من كل مضاد يُستخدم خطأ.',
+    (f?'أنتِ الطبيبة المناوبة الليلة.':'أنت الطبيب المناوب الليلة.')+' ٨ مرضى على موجتين.',
+    'قرار واحد لكل مريض.'];
+  for(const l of lines){await cineType(l);await sleep(1300)}
+  $('cineTx').textContent='';
+  if(!G.skip){setRes(70);SFX.growl();await sleep(500);$('bigbug').classList.add('on');flash('rgba(255,40,80,.5)');shake();
+    $('cineTx').innerHTML='<span class="big">لا تعطها فرصة تتعلّم</span>';await sleep(2200);$('bigbug').classList.remove('on');$('cineTx').textContent='';setRes(0);await sleep(400)}
+  setRes(0);
+  st.classList.remove('letterbox');$('skip').hidden=true;$('cineTx').textContent='';G.cine=false;G.skip=false;
+  moveDoctor(800,true);$('hud').hidden=false;$('hint').hidden=false;G.phase='ward';
+}
+function cineType(text){return new Promise(res=>{const el=$('cineTx');if(G.skip){el.textContent='';return res()}let i=0;el.textContent='';const iv=setInterval(()=>{if(G.skip){clearInterval(iv);el.textContent='';return res()}el.textContent=text.slice(0,++i);if(i%2)SFX.type();if(i>=text.length){clearInterval(iv);res()}},38)})}
+$('skip').onclick=()=>{G.skip=true};
+
+function typeText(el,text){return new Promise(res=>{let i=0;el.textContent='';const done=()=>{clearInterval(iv);el.textContent=text;el.onclick=null;res()};el.onclick=done;const iv=setInterval(()=>{el.textContent=text.slice(0,++i);if(i%2)SFX.type();if(i>=text.length)done()},22)})}
+
+$('beds').addEventListener('click',e=>{const b=e.target.closest('.bed.clickable');if(b)openCase(+b.dataset.i)});
+$('beds').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){const b=e.target.closest('.bed.clickable');if(b){e.preventDefault();openCase(+b.dataset.i)}}});
+
+async function openCase(i){
+  if(G.phase!=='ward'||G.busy)return;const c=G.slots[i];if(!c||c.st!=='wait')return;
+  G.busy=true;G.phase='case';G.active=i;c.st='active';renderBed(i);
+  $('hint').hidden=true;SFX.whoosh();moveDoctor(BEDX[i]+(i===3?-250:200));
+  const sp=c.sp||{name:c.name,role:`${c.age} سنة · مريض${c.g==='f'?'ة':''}`,ch:c.ch,isPatient:true};
+  $('dPortrait').innerHTML=bust(sp.ch,sp.isPatient?'sick':'worried',sp.isPatient&&c.fever);
+  $('dName').textContent=sp.name;$('dRole').textContent=sp.isPatient?sp.role:`${sp.role} · بخصوص ${c.name}`;
+  $('dReport').innerHTML=`<h4><span>تقرير المختبر</span><span>${c.name} · ${c.age}</span></h4><dl>${c.rep.map(r=>`<dt>${r[0]}</dt><dd class="${r[2]?'ar':''}">${r[1]}</dd>`).join('')}</dl>${c.vis||''}`;
+  $('dQ').style.visibility='hidden';$('dQ').textContent=c.q;$('cards').innerHTML='';$('dSpeech').textContent='';
+  const L=['أ','ب','ج'];
+  shuffle(c.opts).forEach((o,k)=>{const b=document.createElement('button');b.className='card';b.type='button';b.disabled=true;
+    b.innerHTML=`<div class="ct"><span class="ic">${ico(o.ic)}</span><span class="k">${L[k]}</span></div><div class="tx"></div>`;b.querySelector('.tx').textContent=o.t;
+    b.onclick=()=>choose(o,b);$('cards').appendChild(b)});
+  const spEl=$('dSpeech');spEl.style.minHeight='';
+  panels('dlg');spEl.style.visibility='hidden';spEl.textContent=c.line;spEl.style.minHeight=spEl.offsetHeight+'px';spEl.textContent='';spEl.style.visibility='';
+  camera(i);
+  if(!isOverlay())setTimeout(()=>(innerHeight>innerWidth?$('stage'):$('dlg')).scrollIntoView({behavior:reduce?'auto':'smooth',block:'start'}),300);
+  await sleep(900);
+  await typeText($('dSpeech'),c.line);
+  $('dQ').style.visibility='';
+  [...$('cards').children].forEach((b,k)=>{b.disabled=false;setTimeout(()=>b.classList.add('in'),80+k*110)});
+  G.answering=true;G.busy=false;G.beepAt=0;
+}
+
+async function flyCard(card,i){
+  if(reduce)return;const r=card.getBoundingClientRect(),[hx,hy]=headPos(i),s=$('stage').getBoundingClientRect();
+  const cl=card.cloneNode(true);Object.assign(cl.style,{position:'fixed',left:r.left+'px',top:r.top+'px',width:r.width+'px',height:r.height+'px',margin:0,zIndex:50,pointerEvents:'none',opacity:1,transform:'none'});
+  document.body.appendChild(cl);
+  const dx=s.left+hx-(r.left+r.width/2),dy=s.top+hy-(r.top+r.height/2);
+  SFX.whoosh();
+  await cl.animate([{transform:'translate(0,0) rotate(0) scale(1)',opacity:1},{transform:`translate(${dx}px,${dy}px) rotate(-18deg) scale(.15)`,opacity:.9}],{duration:560,easing:'cubic-bezier(.5,0,.8,.4)'}).finished.catch(()=>{});
+  cl.remove();
+}
+async function choose(o,card){
+  if(!G.answering)return;G.answering=false;G.busy=true;
+  const i=G.active,c=G.slots[i],kind=o?o.k:'timeout';
+  [...$('cards').children].forEach(b=>{b.disabled=true;if(b!==card)b.classList.add('dim')});
+  if(card){card.classList.add('chosen');await flyCard(card,i)}
+  panels(null);
+  let pts=0,dr=0;
+  if(kind==='right'){G.streak++;G.right++;const bonus=G.timed?Math.round(Math.max(0,c.h)*1.5):80;pts=100+bonus+(G.streak>=2?50*(G.streak-1):0);dr=-5}
+  else if(kind==='over'){G.streak=0;G.right++;pts=40;dr=15}
+  else{G.streak=0;dr=kind==='wrong'?25:20}
+  G.score+=pts;G.res=Math.max(0,Math.min(100,G.res+dr));c.st=kind;c.pts=pts;c.dr=dr;
+  renderBed(i);hud();
+  const [hx,hy]=headPos(i),fem=c.g==='f';
+  if(kind==='right'){
+    flash('rgba(61,220,195,.45)');SFX.ok();burst(hx,hy,['#3DDCC3','#B8FFF1','#F6D36B','#fff'],70,{speed:8,up:2});setRes(G.res);
+    banner('right',fem?'أنقذتها!':'أنقذته!','علاج دقيق… والبكتيريا ما تعلّمت شيئًا');
+    if(G.streak>=2)setTimeout(()=>combo(G.streak),500);
+    await sleep(1800);
+  }else if(kind==='over'){
+    flash('rgba(255,178,62,.35)');SFX.meh();burst(hx,hy,['#FFB23E','#3DDCC3'],36,{speed:5});setRes(G.res,true);
+    banner('over',fem?'تعافت… بسلاح ثقيل':'تعافى… بسلاح ثقيل','العلاج نجح لكنه دفع البكتيريا لتتعلم');
+    await sleep(1500);await taunt(TAUNT_OVER[Math.floor(Math.random()*TAUNT_OVER.length)]);
+  }else{
+    flash('rgba(255,30,60,.6)');shake();SFX.bad();SFX.alarm();burst(hx,hy,['#FF3B5C','#B0216A','#5E0A2E'],80,{speed:7,g:.05});setRes(G.res,true);
+    banner(kind,kind==='wrong'?'قرار خاطئ!':'فات الوقت!',kind==='wrong'?'البكتيريا الخارقة تعلّمت حيلة جديدة':(fem?'تدهورت حالتها وتحولت للعناية':'تدهورت حالته وتحول للعناية'));
+    await sleep(1500);await taunt(TAUNTS[Math.floor(Math.random()*TAUNTS.length)]);
+  }
+  showLearn(c,kind,o);G.busy=false;
+}
+function showLearn(c,kind,o){
+  const V={right:'قرار سليم',over:'عالج، لكن بسلاح أثقل من اللازم',wrong:'قرار خاطئ',timeout:'انتهى الوقت'};
+  $('learnP').className='panel learn '+kind;$('lVerdict').textContent=V[kind];
+  $('lChips').innerHTML=`<span class="chip g">+${c.pts} نقطة</span><span class="chip ${c.dr>0?'r':'c'}">المقاومة ${c.dr>0?'+':'−'}${Math.abs(c.dr)}٪</span>`+(kind==='right'&&G.streak>=2?`<span class="chip g">سلسلة ×${G.streak}</span>`:'');
+  const r=c.opts.find(x=>x.k==='right');
+  $('lText').innerHTML='';
+  if(o){$('lText').textContent=o.fb}
+  if(kind!=='right'){const s=document.createElement('span');s.className='correct';s.textContent=(o?' · ':'')+'الإجابة الأفضل: '+r.t+'. ';$('lText').appendChild(s);if(!o)$('lText').append(r.fb)}
+  $('lFact').innerHTML='معلومة المختبر: '+c.learn;
+  const end=G.res>=100||(G.wave===1&&G.slots.every(s=>s.st!=='wait'&&s.st!=='active'));
+  const wave=G.wave===0&&G.slots.every(s=>s.st!=='wait'&&s.st!=='active');
+  $('lNext').textContent=G.res>=100?'ماذا يحدث الآن؟':end?'إنهاء المناوبة':wave?'استقبال الموجة الثانية':'عودة للجناح';
+  panels('learnP');G.phase='learn';camera(G.active);
+  if(!isOverlay())setTimeout(()=>$('learnP').scrollIntoView({behavior:reduce?'auto':'smooth',block:'start'}),100);
+  setTimeout(()=>$('lNext').focus({preventScroll:true}),50);
+}
+$('lNext').onclick=async()=>{
+  if(G.busy)return;G.busy=true;panels(null);camera(null);moveDoctor(800);G.active=-1;
+  await sleep(900);G.busy=false;afterTurn();
+};
+function afterTurn(){
+  hud();
+  if(G.res>=100)return defeat();
+  const done=G.slots.every(s=>s.st!=='wait'&&s.st!=='active');
+  if(done){if(G.wave===0)return waveCut();return victory()}
+  G.phase='ward';$('hint').hidden=false;
+}
+async function waveCut(){
+  G.phase='cine';$('hint').hidden=true;$('stage').classList.add('letterbox');$('siren').classList.add('on');SFX.siren();
+  $('cineTx').innerHTML='<span class="big" style="color:var(--gold)">الموجة الثانية</span>إسعاف قادم بـ٤ حالات جديدة';
+  await sleep(2700);
+  G.wave=1;G.slots=G.deck.slice(4,8).map(c=>({...c,st:'wait',h:100}));renderBeds();hud();
+  $('siren').classList.remove('on');$('cineTx').textContent='';$('stage').classList.remove('letterbox');
+  await sleep(600);G.phase='ward';$('hint').hidden=false;
+}
+async function defeat(){
+  G.phase='cine';$('hint').hidden=true;$('stage').classList.add('letterbox');SFX.alarm();
+  for(let k=0;k<4;k++){$('world').style.filter=k%2?'brightness(1)':'brightness(.25)';await sleep(180)}
+  $('world').style.filter='brightness(.3) saturate(.6)';
+  SFX.growl();$('bigbug').classList.add('on');shake();flash('rgba(255,20,60,.6)');
+  const s=$('stage').getBoundingClientRect();burst(s.width/2,s.height/2,['#FF3B5C','#B0216A','#5E0A2E'],140,{speed:12,g:.03,size:6});
+  $('cineTx').innerHTML='<span class="big">البكتيريا الخارقة انتصرت</span>المضادات فقدت فعاليتها في الجناح';
+  await sleep(3200);$('cineTx').textContent='';$('stage').classList.remove('letterbox');
+  showEnd(false);
+}
+async function victory(){
+  G.phase='cine';$('hint').hidden=true;$('stage').classList.add('letterbox');
+  $('sk1').setAttribute('stop-color','#F0955F');$('sk2').setAttribute('stop-color','#6E7FD0');$('dawn').classList.add('on');
+  SFX.win();setRes(G.res);
+  const s=$('stage').getBoundingClientRect();
+  for(let k=0;k<4;k++){setTimeout(()=>burst(Math.random()*s.width,-10,['#3DDCC3','#F6D36B','#FF8BA0','#fff','#8AB4FF'],60,{speed:5,g:.08,confetti:true,size:6}),k*350)}
+  $('cineTx').innerHTML='<span class="big" style="color:var(--cure)">طلع الفجر… وانتصرت</span>انتهت المناوبة والمضادات ما زالت تعمل';
+  await sleep(3400);$('cineTx').textContent='';$('stage').classList.remove('letterbox');
+  showEnd(true);
+}
+function showEnd(win){
+  let bonus=0;if(win){bonus=Math.round((100-G.res)*3);G.score+=bonus}
+  hud();
+  $('eBig').className='big '+(win?'win':'lose');$('eBig').textContent=win?'انتصرت على الخارقة':'الخارقة انتصرت';
+  $('eRank').textContent=!win?'البكتيريا تشكرك على التدريب':G.score>=2600?'حارس المضادات الحيوية':G.score>=1700?'استشاري الجناح':'طبيب مقيم واعد';
+  $('eScore').textContent=G.score;$('eRight').textContent=`${G.right}/8`;$('eRes').textContent=G.res+'٪';
+  $('eFact').textContent=win?`كل قرار صحيح يحافظ على فعالية المضادات لنا وللأجيال القادمة.${bonus?` حصلت على ${bonus} نقطة إضافية مقابل المقاومة التي منعتها.`:''}`
+    :'في الواقع، ترتبط مقاومة مضادات الميكروبات بأكثر من مليون وفاة مباشرة سنويًا حول العالم. الاستخدام الصحيح للمضادات هو خط الدفاع الأول.';
+  const a=lbLoad();a.push({n:G.doc.player,s:G.score,w:win});a.sort((x,y)=>y.s-x.s);lbSave(a.slice(0,30));lbRender();
+  $('bigbug').classList.remove('on');panels('endP');G.phase='end';
+}
+$('again').onclick=()=>{$('hud').hidden=true;resetScene();idleScene();$('pname').value='';panels('titleP');G.phase='title'};
+$('go').onclick=startGame;
+$('pname').addEventListener('keydown',e=>{if(e.key==='Enter')startGame()});
+
+/* ================= MAIN LOOP ================= */
+setInterval(()=>{
+  if(!G.timed||!G.slots)return;
+  if(G.phase==='ward'&&!G.busy){
+    for(let i=0;i<4;i++){const c=G.slots[i];if(c.st!=='wait')continue;c.h-=.07;updateVitals(i);
+      if(c.h<=0){c.st='timeout';c.h=0;G.streak=0;G.res=Math.min(100,G.res+20);renderBed(i);setRes(G.res,true);hud();
+        SFX.alarm();flash('rgba(255,30,60,.45)');shake();toast(`${c.name} تدهورت حالته وتحول للعناية · المقاومة +20٪`);
+        setTimeout(afterTurn,900);return}}
+  }else if(G.phase==='case'&&G.answering){
+    const i=G.active,c=G.slots[i];c.h-=100/35/10;updateVitals(i);
+    const now=performance.now();if(now>(G.beepAt||0)){SFX.beep();G.beepAt=now+250+Math.max(0,c.h)*7}
+    if(c.h<=0){c.h=0;choose(null,null)}
+  }
+},100);
+
+lbRender();idleScene();
+})();
+</script>
+
+</body></html>
